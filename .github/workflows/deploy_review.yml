@@ -6,6 +6,15 @@ on:
       - development
 
 jobs:
+  debug:
+    runs-on: ubuntu-latest    
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          lfs: true
+      - name: Sleep to debug # need delay between cancel workflow and delete environment
+        run: |
+            ls -la
   create_env:
     uses: alexey-ban/ai-dial-ci/.github/workflows/gh_env.yml@review_env
     secrets:
