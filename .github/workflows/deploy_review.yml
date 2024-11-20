@@ -2,12 +2,12 @@ name: Deploy Review
 
 on:
   pull_request_target:
-    branches: 
+    branches:
       - development
 
 jobs:
   debug:
-    runs-on: ubuntu-latest    
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
@@ -16,22 +16,22 @@ jobs:
         run: |
             ls -la
   create_env:
-    uses: alexey-ban/ai-dial-ci/.github/workflows/gh_env.yml@review_env
+    uses: nepalevov/ai-dial-ci/.github/workflows/gh_env.yml@review_env
     secrets:
       ACTIONS_BOT_TOKEN: ${{ secrets.ACTIONS_BOT_TOKEN }}
     with:
       environment_create: true
 
   build_docker:
-    uses: alexey-ban/ai-dial-ci/.github/workflows/generic_docker_review.yml@review_env
-    secrets: inherit   
+    uses: nepalevov/ai-dial-ci/.github/workflows/generic_docker_review.yml@review_env
+    secrets: inherit
     needs:
       - create_env
     with:
       environment_name: ${{ needs.create_env.outputs.environment_name }}
-      
+
   deploy_helm:
-    uses: alexey-ban/ai-dial-ci/.github/workflows/k8s_env.yml@review_env
+    uses: nepalevov/ai-dial-ci/.github/workflows/k8s_env.yml@review_env
     needs:
       - create_env
       - build_docker
@@ -43,7 +43,7 @@ jobs:
       helm_extra_args: "--set-file core.extraConfig=./build/helm/review_core.json"
 
   run_e2e:
-    uses: alexey-ban/ai-dial-ci/.github/workflows/run_e2e_test.yml@review_env
+    uses: nepalevov/ai-dial-ci/.github/workflows/run_e2e_test.yml@review_env
     needs:
       - create_env
       - deploy_helm

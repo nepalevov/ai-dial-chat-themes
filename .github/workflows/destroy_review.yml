@@ -16,7 +16,7 @@ jobs:
           workflow_id: "all"
 
   delete-k8s-env:
-    uses: alexey-ban/ai-dial-ci/.github/workflows/k8s_env.yml@review_env
+    uses: nepalevov/ai-dial-ci/.github/workflows/k8s_env.yml@main
     needs:
       - cancel-workflows
     with:
@@ -27,7 +27,7 @@ jobs:
   delete-gh-environment:
     runs-on: ubuntu-latest
     needs:
-      - cancel-workflows    
+      - cancel-workflows
     steps:
       - name: Sleep to debug # need delay between cancel workflow and delete environment
         run: |

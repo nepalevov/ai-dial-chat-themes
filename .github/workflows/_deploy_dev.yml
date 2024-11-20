@@ -7,15 +7,15 @@ on:
 
 jobs:
   set_env:
-    uses: alexey-ban/ai-dial-ci/.github/workflows/gh_env.yml@review_env
+    uses: nepalevov/ai-dial-ci/.github/workflows/gh_env.yml@main
     secrets: inherit
     with:
       environment_name: pr-${{ github.event.pull_request.number }}
       environment_url: "https://chat-ai-dial-themes-pr-${{ github.event.pull_request.number }}.gke.test.epam-rail.com"
 
-      
+
   deploy_helm:
-    uses: alexey-ban/ai-dial-ci/.github/workflows/k8s_env.yml@review_env
+    uses: nepalevov/ai-dial-ci/.github/workflows/k8s_env.yml@main
     if: ${{ github.event.registry_package.package_version.container_metadata.tag.name == 'development' }}
     needs:
       - set_env
