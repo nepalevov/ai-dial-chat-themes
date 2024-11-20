@@ -16,14 +16,14 @@ jobs:
         run: |
             ls -la
   create_env:
-    uses: nepalevov/ai-dial-ci/.github/workflows/gh_env.yml@review_env
+    uses: nepalevov/ai-dial-ci/.github/workflows/gh_env.yml@main
     secrets:
       ACTIONS_BOT_TOKEN: ${{ secrets.ACTIONS_BOT_TOKEN }}
     with:
       environment_create: true
 
   build_docker:
-    uses: nepalevov/ai-dial-ci/.github/workflows/generic_docker_review.yml@review_env
+    uses: nepalevov/ai-dial-ci/.github/workflows/generic_docker_review.yml@main
     secrets: inherit
     needs:
       - create_env
@@ -31,9 +31,8 @@ jobs:
       environment_name: ${{ needs.create_env.outputs.environment_name }}
 
   deploy_helm:
-    uses: nepalevov/ai-dial-ci/.github/workflows/k8s_env.yml@review_env
+    uses: nepalevov/ai-dial-ci/.github/workflows/k8s_env.yml@main
     needs:
-      - create_env
       - build_docker
     with:
       cloud_provider: "gcp"
@@ -43,9 +42,8 @@ jobs:
       helm_extra_args: "--set-file core.extraConfig=./build/helm/review_core.json"
 
   run_e2e:
-    uses: nepalevov/ai-dial-ci/.github/workflows/run_e2e_test.yml@review_env
+    uses: nepalevov/ai-dial-ci/.github/workflows/run_e2e_test.yml@main
     needs:
-      - create_env
       - deploy_helm
     with:
       url: ${{ needs.create_env.outputs.chat_url }}
