@@ -11,7 +11,7 @@ jobs:
     secrets:
       ACTIONS_BOT_TOKEN: ${{ secrets.ACTIONS_BOT_TOKEN }}
     with:
-      operation: true
+      operation: create
     # HINT: outputs: ["environment_name", "environment_url"]
 
   test_and_build:
