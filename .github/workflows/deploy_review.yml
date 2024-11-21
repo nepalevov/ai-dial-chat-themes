@@ -14,15 +14,6 @@ jobs:
       operation: true
     # HINT: outputs: ["environment_name", "environment_url"]
 
-  # test_and_build:
-  #   uses: nepalevov/ai-dial-ci/.github/workflows/generic_docker_review.yml@main
-  #   secrets: inherit
-  #   needs:
-  #     - create_gh_environment
-  #   with:
-  #     environment_name: ${{ needs.create_gh_environment.outputs.environment_name }}
-  #   # HINT: outputs: ["image_registry" "image_repository" "image_tag"]
-
   test_and_build:
     runs-on: ubuntu-latest
     needs:
@@ -31,18 +22,6 @@ jobs:
       - run: |
           echo "Running tests and building the application..."
           echo "Additional docker tag: ${{ needs.create_gh_environment.outputs.environment_name }}"
-
-  # deploy:
-  #   uses: nepalevov/ai-dial-ci/.github/workflows/k8s_env.yml@main
-  #   needs:
-  #     - create_gh_environment
-  #     - test_and_build
-  #   with:
-  #     cloud_provider: "gcp"
-  #     k8s_namespace: ${{ github.repository_id }}-${{ needs.create_gh_environment.outputs.environment_name }}
-  #     helm_values_file: "./build/helm/review.yaml"
-  #     helm_values: "global.url=${{ needs.create_gh_environment.outputs.base_url }},themes.image.registry=${{ needs.test_and_build.outputs.image_registry }},themes.image.repository=${{ needs.test_and_build.outputs.image_repository }},themes.image.tag=${{ needs.test_and_build.outputs.image_tag }}" # for epam we can delete themes.image.repository
-  #     helm_extra_args: "--set-file core.extraConfig=./build/helm/review_core.json"
 
   deploy:
     runs-on: ubuntu-latest
@@ -54,11 +33,3 @@ jobs:
           echo "Deploying the application to the cluster..."
           echo "Namespace: ${{ github.repository_id }}-${{ needs.create_gh_environment.outputs.environment_name }}
           echo "Global deployment URL: ${{ needs.create_gh_environment.outputs.environment_url }}"
-
-  # e2e_tests:
-  #   uses: nepalevov/ai-dial-ci/.github/workflows/run_e2e_tests.yml@main
-  #   needs:
-  #     - create_gh_environment
-  #     - deploy
-  #   with:
-  #     url: ${{ needs.create_gh_environment.outputs.chat_url }}
