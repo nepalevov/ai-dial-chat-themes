@@ -18,15 +18,6 @@ jobs:
           ignore_sha: true
           workflow_id: "all"
 
-  # destroy:
-  #   uses: nepalevov/ai-dial-ci/.github/workflows/k8s_env.yml@main
-  #   needs:
-  #     - cancel-workflows
-  #   with:
-  #     cloud_provider: "gcp"
-  #     helm_operation: "uninstall"
-  #     k8s_namespace: ${{ github.repository_id }}-pr-${{ github.event.pull_request.number }}
-
   destroy:
     runs-on: ubuntu-latest
     needs:
