@@ -7,9 +7,10 @@ on:
 
 jobs:
   set_env:
-    uses: nepalevov/ai-dial-ci/.github/workflows/gh_env.yml@main
+    uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
     secrets: inherit
     with:
+      operation: create
       environment_name: pr-${{ github.event.pull_request.number }}
       environment_url: "https://chat-ai-dial-themes-pr-${{ github.event.pull_request.number }}.gke.test.epam-rail.com"
 
