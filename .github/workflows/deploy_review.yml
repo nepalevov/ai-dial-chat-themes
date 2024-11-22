@@ -4,32 +4,50 @@ on:
   pull_request_target:
     branches:
       - development
+      # TODO: add release-* ??
+
+permissions: {}
 
 jobs:
-  create_gh_environment:
+  create-gh-environment:
     uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
-    secrets:
-      ACTIONS_BOT_TOKEN: ${{ secrets.ACTIONS_BOT_TOKEN }}
     with:
       operation: create
-    # HINT: outputs: ["environment_name", "environment_url"]
+    secrets:
+      ACTIONS_BOT_TOKEN: ${{ secrets.ACTIONS_BOT_TOKEN }}
+    # HINT: outputs: ["environment_name", "environment_fqdn", "environment_url"]
 
-  test_and_build:
+  test-and-build:
     runs-on: ubuntu-latest
     needs:
-      - create_gh_environment
+      - create-gh-environment
     steps:
       - run: |
           echo "Running tests and building the application..."
-          echo "Additional docker tag: ${{ needs.create_gh_environment.outputs.environment_name }}"
+          echo "Additional docker tag: ${{ needs.create-gh-environment.outputs.environment_name }}"
+
+  check-approve-gate:
+    runs-on: ubuntu-latest
+    needs:
+      - create-gh-environment
+    concurrency:
+      group: ${{ needs.create-gh-environment.outputs.environment_name }}
+      cancel-in-progress: true
+    environment:
+      name: ${{ needs.create-gh-environment.outputs.environment_name }}
+      url: ${{ needs.create-gh-environment.outputs.environment_url }}
+    steps:
+      - run: |
+          echo "Waiting for approve"
 
   deploy:
     runs-on: ubuntu-latest
     needs:
-      - create_gh_environment
-      - test_and_build
+      - create-gh-environment
+      - check-approve-gate
+      - test-and-build
     steps:
       - run: |
           echo "Deploying the application to the cluster..."
-          echo "Namespace: ${{ github.repository_id }}-${{ needs.create_gh_environment.outputs.environment_name }}
-          echo "Global deployment URL: ${{ needs.create_gh_environment.outputs.environment_url }}"
+          echo "Namespace: ${{ github.repository_id }}-${{ needs.create-gh-environment.outputs.environment_name }}
+          echo "Global deployment FQDN: ${{ needs.create-gh-environment.outputs.environment_fqdn }}"
