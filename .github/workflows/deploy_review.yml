@@ -24,6 +24,7 @@ jobs:
     steps:
       - run: |
           echo "Running tests and building the application..."
+          sleep 300
           echo "Additional docker tag: ${{ needs.create-gh-environment.outputs.environment_name }}"
 
   check-approve-gate:
@@ -49,5 +50,6 @@ jobs:
     steps:
       - run: |
           echo "Deploying the application to the cluster..."
+          sleep 300
           echo "Namespace: ${{ github.repository_id }}-${{ needs.create-gh-environment.outputs.environment_name }}
           echo "Global deployment FQDN: ${{ needs.create-gh-environment.outputs.environment_fqdn }}"
