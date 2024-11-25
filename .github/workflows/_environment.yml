@@ -1,0 +1,18 @@
+name: Deploy Review
+
+on:
+  pull_request_target:
+    branches:
+      - development
+      # TODO: add release-* ??
+
+permissions: {}
+
+jobs:
+  create-gh-environment:
+    uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
+    with:
+      operation: create
+    secrets:
+      ACTIONS_BOT_TOKEN: ${{ secrets.ACTIONS_BOT_TOKEN }}
+    # HINT: outputs: ["environment_name", "environment_fqdn", "environment_url"]

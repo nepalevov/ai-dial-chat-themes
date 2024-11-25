@@ -2,8 +2,6 @@ name: Destroy Review
 
 on:
   pull_request_target:
-    branches:
-      - development
     types:
       - closed
 
