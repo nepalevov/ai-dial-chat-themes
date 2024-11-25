@@ -42,5 +42,5 @@ jobs:
     steps:
       - run: |
           echo "Deploying the application to the cluster..."
-          echo "Namespace: ${{ github.repository_id }}-${{ needs.plan.outputs.environment_name }}"
+          echo "Namespace: ${{ github.repository }}-${{ needs.plan.outputs.environment_name }}"
           echo "Global deployment FQDN: ${{ needs.plan.outputs.environment_fqdn }}"

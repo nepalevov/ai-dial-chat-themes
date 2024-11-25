@@ -21,4 +21,4 @@ jobs:
     steps:
       - run: |
           echo "Destroying the application in the cluster..."
-          echo "Namespace: ${{ github.repository_id }}-${{ needs.delete-gh-environment.outputs.environment_name }}"
+          echo "Namespace: ${{ github.repository }}-${{ needs.delete-gh-environment.outputs.environment_name }}"
