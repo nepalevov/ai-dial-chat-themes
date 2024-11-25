@@ -16,27 +16,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test-and-build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
-        id: create-gh-environment
-        with:
-          operation: plan
-      - run: |
-          echo "Running tests and building the application..."
-          echo "Additional docker tag: ${{ steps.create-gh-environment.outputs.environment_name }}"
-      # TODO: replace with real build
-      - name: Build and export
-        uses: nepalevov/ai-dial-ci/actions/build_docker@main
-        with:
-          image_name: ${{ github.repository }}
-          image_tag: ${{ github.sha }}
-          image_extra_aliases: |
-            ${{ github.repository }}:${{ steps.create-gh-environment.outputs.environment_name }}
-          outputs: type=docker,dest=/tmp/image.tar
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4.4.3
-        with:
-          name: image
-          path: /tmp/image.tar
+  plan:
+    uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
+    with:
+      operation: plan
+
+  # TODO: replace with real build
+  build:
+    needs:
+      - plan
+    uses: nepalevov/ai-dial-ci/actions/build_docker@main
+    with:
+      image_name: ${{ github.repository }}
+      image_tag: ${{ github.sha }}
+      image_extra_aliases: |
+        ${{ github.repository }}:${{ needs.plan.outputs.environment_name }}
+      outputs: type=docker,dest=/tmp/image.tar
+
+  export:
+    needs:
+      - build
+    uses: actions/upload-artifact@v4.4.3
+    with:
+      name: image
+      path: /tmp/image.tar
