@@ -23,12 +23,10 @@ run-name: CD for ${{ github.event.workflow_run.display_title }}
 jobs:
   plan:
     if: (github.event.workflow_run.conclusion == 'success')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
-        with:
-          operation: plan
-          environment_name: "pr-${{ github.event.workflow_run.pull_requests[0].number }}"
+    uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
+    with:
+      operation: plan
+      environment_name: "pr-${{ github.event.workflow_run.pull_requests[0].number }}"
 
   deploy:
     if: (github.event.workflow_run.conclusion == 'success')
