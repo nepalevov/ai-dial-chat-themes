@@ -11,9 +11,9 @@ on:
       # TODO: add release-* ??
       # TODO: remove branches condition ??
 
-# concurrency:
-#   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-#   cancel-in-progress: true
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   plan:
