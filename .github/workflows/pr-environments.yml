@@ -1,9 +1,14 @@
-name: PR cleanup
+name: PR Environments
 
 on:
   pull_request_target:
     types:
+      - opened
+      - synchronize
+      - reopened
       - closed
+    branches:
+      - development
 
 permissions: {}
 
@@ -12,6 +17,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  create-gh-environment:
+    if: |
+      github.event.action == 'opened' ||
+      github.event.action == 'synchronize' ||
+      github.event.action == 'reopened'
+    uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
+    with:
+      operation: create
+      reviewers: '[{"type": "User", "id": 33350321}]' # TODO: `nepalevov`. Change to epam/dial-contributors user group
+    secrets:
+      ACTIONS_BOT_TOKEN: ${{ secrets.ACTIONS_BOT_TOKEN }}
+    # HINT: outputs: ["environment_name", "environment_fqdn", "environment_url"]
   delete-gh-environment:
     if: github.event.action == 'closed'
     uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
