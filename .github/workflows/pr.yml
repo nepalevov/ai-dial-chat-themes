@@ -21,18 +21,11 @@ jobs:
     with:
       operation: plan
 
-  # TODO: replace with real build
   check-and-build:
     needs:
       - plan
-    # TODO: replace with real build
-    # uses: nepalevov/ai-dial-ci/.github/workflows/generic_docker_review.yml@main
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          echo "Building the application..."
-          sleep 30
-          echo "Build completed successfully!"
+    uses: nepalevov/ai-dial-ci/.github/workflows/generic_docker_pr_with_upload.yml@main
+    # HINT: outputs: ["image_registry", "image_repository", "image_tag"]
 
   # TODO: replace with real deploy
   deploy:
@@ -50,5 +43,12 @@ jobs:
           echo "Deploying the application to the cluster..."
           echo "Namespace: ${{ github.event.repository.name }}-${{ needs.plan.outputs.environment_name }}"
           echo "Global deployment FQDN: ${{ needs.plan.outputs.environment_fqdn }}"
+          echo: "Docker image: ${{ needs.check-and-build.outputs.image_registry }}/${{ needs.check-and-build.outputs.image_repository }}:${{ needs.check-and-build.outputs.image_tag }}"
           sleep 30
           echo "Deploy completed successfully!"
+      # TODO: remove after debug
+      - uses: tyriis/docker-image-tag-exists@71a750a41aa78e4efb0842f538140c5df5b8166f # v2.1.0
+        with:
+          registry: ${{ needs.check-and-build.outputs.image_registry }}
+          repository: ${{ needs.check-and-build.outputs.image_repository }}
+          tag: ${{ needs.check-and-build.outputs.image_tag }}
