@@ -1,4 +1,4 @@
-name: PR opened
+name: PR Environment
 
 on:
   pull_request_target:
