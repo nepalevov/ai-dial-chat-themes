@@ -13,9 +13,9 @@ on:
 
 permissions: {}
 
-# concurrency:
-#   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-#   cancel-in-progress: true
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   create-gh-environment:
@@ -26,6 +26,7 @@ jobs:
     uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
     with:
       operation: create
+      reviewers: '[{"type": "User", "id": 20123880}]' # TODO: change to epam/dial-contributors user group
     secrets:
       ACTIONS_BOT_TOKEN: ${{ secrets.ACTIONS_BOT_TOKEN }}
     # HINT: outputs: ["environment_name", "environment_fqdn", "environment_url"]
