@@ -1,0 +1,52 @@
+name: PR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    branches:
+      - development
+      # TODO: add release-* ??
+      # TODO: remove branches condition ??
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
+    with:
+      operation: plan
+
+  # TODO: replace with real build
+  check-and-build:
+    needs:
+      - plan
+    # TODO: replace with real build
+    # uses: nepalevov/ai-dial-ci/.github/workflows/generic_docker_review.yml@main
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "Building the application..."
+          sleep 120
+          echo "Build completed successfully!"
+
+  # TODO: replace with real deploy
+  deploy:
+    runs-on: ubuntu-latest
+    needs:
+      - plan
+      - check-and-build
+    concurrency:
+      group: "${{ needs.plan.outputs.environment_name }}-modify"
+    environment:
+      name: ${{ needs.plan.outputs.environment_name }}
+      url: ${{ needs.plan.outputs.environment_url }}
+    steps:
+      - run: |
+          echo "Deploying the application to the cluster..."
+          echo "Namespace: ${{ github.event.repository.name }}-${{ needs.plan.outputs.environment_name }}"
+          echo "Global deployment FQDN: ${{ needs.plan.outputs.environment_fqdn }}"
