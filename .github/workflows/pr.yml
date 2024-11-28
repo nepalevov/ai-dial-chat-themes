@@ -35,5 +35,5 @@ jobs:
         - name: Load image
           run: |
             docker image ls -a
-            docker load --input /tmp/${{ needs.check-and-build.outputs.artifact_name }}
+            docker load --input /tmp/${{ needs.check-and-build.outputs.artifact_name }}.tar
             docker image ls -a
