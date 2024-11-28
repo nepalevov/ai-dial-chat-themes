@@ -20,31 +20,5 @@ jobs:
   check-and-build:
     needs:
       - plan
-    uses: nepalevov/ai-dial-ci/.github/workflows/generic_docker_pr_with_upload.yml@main
-    # HINT: outputs: ["image_registry", "image_repository", "image_tag"]
-
-  # TODO: replace with real deploy
-  deploy:
-    runs-on: ubuntu-latest
-    needs:
-      - plan
-      - check-and-build
-    concurrency:
-      group: "${{ needs.plan.outputs.environment_name }}-modify"
-    environment:
-      name: ${{ needs.plan.outputs.environment_name }}
-      url: ${{ needs.plan.outputs.environment_url }}
-    steps:
-      - run: |
-          echo "Deploying the application to the cluster..."
-          echo "Namespace: ${{ github.event.repository.name }}-${{ needs.plan.outputs.environment_name }}"
-          echo "Global deployment FQDN: ${{ needs.plan.outputs.environment_fqdn }}"
-          echo: "Docker image: ${{ needs.check-and-build.outputs.image_registry }}/${{ needs.check-and-build.outputs.image_repository }}:${{ needs.check-and-build.outputs.image_tag }}"
-          sleep 30
-          echo "Deploy completed successfully!"
-      # TODO: remove after debug
-      - uses: tyriis/docker-image-tag-exists@71a750a41aa78e4efb0842f538140c5df5b8166f # v2.1.0
-        with:
-          registry: ${{ needs.check-and-build.outputs.image_registry }}
-          repository: ${{ needs.check-and-build.outputs.image_repository }}
-          tag: ${{ needs.check-and-build.outputs.image_tag }}
+    uses: nepalevov/ai-dial-ci/.github/workflows/generic_docker_pr.yml@main
+    # HINT: outputs: ["artifact_name"]
