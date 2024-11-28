@@ -22,3 +22,18 @@ jobs:
       - plan
     uses: nepalevov/ai-dial-ci/.github/workflows/generic_docker_pr.yml@main
     # HINT: outputs: ["artifact_name"]
+
+  use:
+      runs-on: ubuntu-latest
+      needs: check-and-build
+      steps:
+        - name: Download artifact
+          uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+          with:
+            name: ${{ needs.check-and-build.outputs.artifact_name }}
+            path: /tmp
+        - name: Load image
+          run: |
+            docker image ls -a
+            docker load --input /tmp/${{ needs.check-and-build.outputs.artifact_name }}
+            docker image ls -a
