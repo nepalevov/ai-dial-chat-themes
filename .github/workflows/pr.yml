@@ -21,6 +21,9 @@ jobs:
     needs:
       - plan
     uses: nepalevov/ai-dial-ci/.github/workflows/generic_docker_pr.yml@main
+    with:
+      enable_ort: false
+      enable_trivy: false
     # HINT: outputs: ["artifact_name"]
 
   use:
@@ -35,5 +38,6 @@ jobs:
         - name: Load image
           run: |
             docker image ls -a
+            ls -lah /tmp
             docker load --input /tmp/${{ needs.check-and-build.outputs.artifact_name }}.tar
             docker image ls -a
