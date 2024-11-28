@@ -9,6 +9,8 @@ on:
       - closed
     branches:
       - development
+      # TODO: add release-* ??
+      # TODO: remove branches condition ??
 
 permissions: {}
 
