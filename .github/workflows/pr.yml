@@ -23,7 +23,6 @@ jobs:
     uses: nepalevov/ai-dial-ci/.github/workflows/generic_docker_pr.yml@main
     with:
       enable_ort: false
-      enable_trivy: false
     # HINT: outputs: ["artifact_name"]
 
   use:
