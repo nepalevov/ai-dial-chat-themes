@@ -23,7 +23,7 @@ jobs:
     uses: nepalevov/ai-dial-ci/.github/workflows/generic_docker_pr.yml@main
     with:
       enable_ort: false
-    # HINT: outputs: ["artifact_name"]
+    # HINT: outputs: ["image_tag", "artifact_name"]
 
   use:
       runs-on: ubuntu-latest
@@ -36,10 +36,6 @@ jobs:
             path: /tmp
         - name: Load image
           run: |
-            docker image ls -a
-            ls -lah /tmp
-            docker import /tmp/${{ needs.check-and-build.outputs.artifact_name }}.tar || true
-            docker image ls -a
-            docker load --input /tmp/${{ needs.check-and-build.outputs.artifact_name }}.tar || true
-            docker image ls -a
-            # huh
+            docker load --input /tmp/${{ needs.check-and-build.outputs.artifact_name }}.tar
+            docker image inspect ${{ needs.check-and-build.outputs.image_tag }}
+            docker run --rm ${{ needs.check-and-build.outputs.image_tag }}
