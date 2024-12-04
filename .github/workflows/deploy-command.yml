@@ -3,10 +3,21 @@ on:
   repository_dispatch:
     types: [deploy-command]
 jobs:
-  plan:
-    uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
-    with:
-      operation: plan
+
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump GitHub context
+        run: echo "$GITHUB_CONTEXT"
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github.event) }}
+
+  # plan:
+  #   uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
+  #   with:
+  #     operation: plan
+  #     environment_name: ${{ github.event.client_payload.
+
 
   deploy:
     runs-on: ubuntu-latest
@@ -59,11 +70,6 @@ jobs:
           echo "| GITHUB_TRIGGER    | ${{ github.event.client_payload.github.payload.comment.html_url }}     |"
 
           echo "status=success" >>$GITHUB_OUTPUT # TODO: remove mock status after debug
-
-      - name: Dump GitHub context
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github.event.client_payload) }}
-        run: echo "$GITHUB_CONTEXT"
 
       - name: Check status
         id: status
