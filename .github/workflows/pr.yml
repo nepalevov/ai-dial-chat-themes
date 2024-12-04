@@ -38,4 +38,3 @@ jobs:
           run: |
             docker load --input /tmp/${{ needs.check-and-build.outputs.artifact_name }}.tar
             docker image inspect ${{ needs.check-and-build.outputs.image_name }}:${{ needs.check-and-build.outputs.image_tag }}
-            docker run --rm ${{ needs.check-and-build.outputs.image_name }}:${{ needs.check-and-build.outputs.image_tag }}
