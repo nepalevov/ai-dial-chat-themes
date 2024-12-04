@@ -47,11 +47,6 @@ jobs:
           HEAD_REPO="${{ github.event.client_payload.pull_request.head.repo.full_name }}"
           HEAD_REF="${{ github.event.client_payload.pull_request.head.ref }}"
 
-          echo "$PR_NUMBER" # TODO: remove after debug
-          echo "$HEAD_REPO" # TODO: remove after debug
-          echo "$HEAD_REF" # TODO: remove after debug
-
-
           # If any required value is missing, try to resolve via API
           if [[ -z "$PR_NUMBER" || -z "$HEAD_REPO" || -z "$HEAD_REF" ]]; then
             echo "Some values missing from context, falling back to API resolution..."
@@ -98,6 +93,9 @@ jobs:
             exit 1
           fi
 
+          echo "$PR_NUMBER" # TODO: remove after debug
+          echo "$HEAD_REPO" # TODO: remove after debug
+          echo "$HEAD_REF" # TODO: remove after debug
           echo "number=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "repo=$HEAD_REPO" >> $GITHUB_OUTPUT
           echo "ref=$HEAD_REF" >> $GITHUB_OUTPUT
@@ -105,6 +103,7 @@ jobs:
           # Set trigger URL based on source
           if [[ "${{ github.event.client_payload.github.action }}" == "scd" ]]; then
             TRIGGER_URL="${{ github.event.client_payload.github.payload.comment.html_url }}"
+            echo "is_comment_trigger=${{ github.event.client_payload.github.action == 'scd' }}" >> $GITHUB_OUTPUT
           else
             TRIGGER_URL="${{ github.event.client_payload.github.event.workflow_run.html_url }}"
           fi
@@ -116,12 +115,12 @@ jobs:
         id: deploy
         run: |
           echo "Deploying with the following parameters:"
-          echo "| Parameter         | Value                                                                  |"
-          echo "|-------------------|------------------------------------------------------------------------|"
-          echo "| GITHUB_PR         | pr-${{ steps.pr_info.outputs.number }} |"
-          echo "| GITHUB_REPO       | ${{ steps.pr_info.outputs.repo }} |"
-          echo "| GITHUB_REF        | ${{ steps.pr_info.outputs.ref }} |"
-          echo "| GITHUB_TRIGGER    | ${{ steps.pr_info.outputs.trigger }} |"
+          echo "| Parameter         | Value                                   |"
+          echo "|-------------------|-----------------------------------------|"
+          echo "| GITHUB_PR         | pr-${{ steps.pr_info.outputs.number }}  |"
+          echo "| GITHUB_REPO       | ${{ steps.pr_info.outputs.repo }}       |"
+          echo "| GITHUB_REF        | ${{ steps.pr_info.outputs.ref }}        |"
+          echo "| GITHUB_TRIGGER    | ${{ steps.pr_info.outputs.trigger }}    |"
 
           sleep 30
           echo "status=success" >>$GITHUB_OUTPUT # TODO: remove mock status after debug
@@ -147,22 +146,21 @@ jobs:
             MESSAGE+=">Something went wrong, check [GitHub Workflow run output](${GITHUB_WORKFLOW_URL})\n"
           fi
 
-          # Output to build summary
-          echo "# Deployment Status" >> $GITHUB_STEP_SUMMARY
+          echo "## Deployment Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "$MESSAGE" >> $GITHUB_STEP_SUMMARY
+          echo "| Status            | Message                                 |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------------|-----------------------------------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Overall           | $MESSAGE                                |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "For more details, see the [workflow run]($GITHUB_WORKFLOW_URL)" >> $GITHUB_STEP_SUMMARY
 
           # Store message for potential comment
           echo "message=$MESSAGE" >> $GITHUB_OUTPUT
-          # Store whether this was triggered by a comment
-          echo "is_comment_trigger=${{ github.event.client_payload.github.action == 'scd' }}" >> $GITHUB_OUTPUT
 
       - name: Return status as comment
         if: |
           (success() || failure()) &&
-          steps.status.outputs.is_comment_trigger == 'true'
+          steps.pr_info.outputs.is_comment_trigger == 'true'
         uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
         with:
           token: ${{ secrets.ACTIONS_BOT_TOKEN }}
