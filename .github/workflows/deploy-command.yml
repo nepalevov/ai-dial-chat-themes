@@ -3,6 +3,11 @@ on:
   repository_dispatch:
     types: [deploy-command]
 jobs:
+  plan:
+    uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
+    with:
+      operation: plan
+
   deploy:
     runs-on: ubuntu-latest
     steps:
