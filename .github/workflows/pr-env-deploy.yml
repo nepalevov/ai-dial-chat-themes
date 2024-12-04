@@ -16,3 +16,7 @@ jobs:
         with:
           token: ${{ secrets.ACTIONS_BOT_TOKEN }}
           event-type: deploy-command
+          client-payload: |-
+            {
+              "github": ${{ toJson(github) }}
+            }
