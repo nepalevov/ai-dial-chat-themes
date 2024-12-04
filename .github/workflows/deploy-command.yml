@@ -10,7 +10,7 @@ jobs:
       - name: Dump GitHub context
         run: echo "$GITHUB_CONTEXT"
         env:
-          GITHUB_CONTEXT: ${{ toJson(github.event.client_payload) }}
+          GITHUB_CONTEXT: ${{ toJson(github.event) }}
 
   # plan:
   #   uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
