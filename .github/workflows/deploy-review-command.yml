@@ -155,7 +155,7 @@ jobs:
           fi
 
           # Deployment check
-          if [[ -n "${{ steps.deploy.outputs.status }}" && "${{ steps.deploy.outputs.status }}" != "success" ]]; then
+          if [[ "${{ steps.deploy.outputs.status }}" != "success" ]]; then
             DEPLOY_CHECK_FLAG="❌"
             MESSAGE+=">- **Deployment failed**: ${{ steps.deploy.outputs.status }}\n"
           fi
