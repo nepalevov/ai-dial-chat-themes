@@ -46,19 +46,25 @@ jobs:
         id: deploy
         run: |
           echo "Deploying with the following parameters:"
-          echo "| Parameter         | Value                                          |"
-          echo "|-------------------|------------------------------------------------|"
+          echo "| Parameter         | Value                                                                  |"
+          echo "|-------------------|------------------------------------------------------------------------|"
           echo "| GITHUB_PR         | pr-${{ github.event.client_payload.pull_request.number }}              |"
           echo "| GITHUB_REPO       | ${{ github.event.client_payload.pull_request.head.repo.full_name }}    |"
           echo "| GITHUB_REF        | ${{ github.event.client_payload.pull_request.head.ref }}               |"
           echo "| GITHUB_TRIGGER    | ${{ github.event.client_payload.github.payload.comment.html_url }}     |"
 
-          echo "status=success" >>$GITHUB_OUTPUT
+          echo "status=success" >>$GITHUB_OUTPUT # TODO: remove mock status after debug
+
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github.event.client_payload) }}
+        run: echo "$GITHUB_CONTEXT"
 
       - name: Check status
         id: status
         if: success() || failure()
         run: |
+          echo "Checking deployment status"
           GITHUB_WORKFLOW_URL=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
 
           MESSAGE=""
@@ -74,6 +80,7 @@ jobs:
           if [[ -z "${{ steps.owner.outputs.status }}" && -z "${{ steps.vars.outputs.status }}" && -z "${{ steps.deploy.outputs.status }}" ]]; then
             MESSAGE+=">Something went wrong, check [GitHub Workflow run output](${GITHUB_WORKFLOW_URL})\n"
           fi
+          echo "$MESSAGE"
           echo -e "message=$MESSAGE" >> $GITHUB_OUTPUT
 
       - name: Return status

@@ -1,4 +1,4 @@
-name: PR Environments
+name: PR Environment
 
 on:
   pull_request_target:
@@ -30,6 +30,7 @@ jobs:
     secrets:
       ACTIONS_BOT_TOKEN: ${{ secrets.ACTIONS_BOT_TOKEN }}
     # HINT: outputs: ["environment_name", "environment_fqdn", "environment_url"]
+
   delete-gh-environment:
     if: github.event.action == 'closed'
     uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
