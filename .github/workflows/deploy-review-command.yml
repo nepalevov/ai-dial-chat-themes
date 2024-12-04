@@ -93,9 +93,11 @@ jobs:
             exit 1
           fi
 
-          echo "$PR_NUMBER" # TODO: remove after debug
-          echo "$HEAD_REPO" # TODO: remove after debug
-          echo "$HEAD_REF" # TODO: remove after debug
+          echo "| Parameter         | Value       |"
+          echo "|-------------------|-------------|"
+          echo "| PR_NUMBER         | $PR_NUMBER  |"
+          echo "| HEAD_REPO         | $HEAD_REPO  |"
+          echo "| HEAD_REF          | $HEAD_REF   |"
           echo "number=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "repo=$HEAD_REPO" >> $GITHUB_OUTPUT
           echo "ref=$HEAD_REF" >> $GITHUB_OUTPUT
@@ -132,27 +134,46 @@ jobs:
           echo "Checking deployment status"
           GITHUB_WORKFLOW_URL=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
 
+          # Initialize the message
           MESSAGE=""
+
+          # Initialize flags
+          OWNER_CHECK_FLAG="✅"
+          PR_INFO_CHECK_FLAG="✅"
+          DEPLOY_CHECK_FLAG="✅"
+
+          # Owner check
           if [[ -n "${{ steps.owner.outputs.status }}" ]]; then
+            OWNER_CHECK_FLAG="❌"
             MESSAGE+=">- **Owner check failed**: ${{ steps.owner.outputs.status }}\n"
           fi
+
+          # PR info check
           if [[ -n "${{ steps.pr_info.outputs.status }}" ]]; then
+            PR_INFO_CHECK_FLAG="❌"
             MESSAGE+=">- **Find PR failed**: ${{ steps.pr_info.outputs.status }}\n"
           fi
+
+          # Deployment check
           if [[ -n "${{ steps.deploy.outputs.status }}" && "${{ steps.deploy.outputs.status }}" != "success" ]]; then
+            DEPLOY_CHECK_FLAG="❌"
             MESSAGE+=">- **Deployment failed**: ${{ steps.deploy.outputs.status }}\n"
           fi
+
+          # If there are no errors, set a success message
           if [[ -z "${{ steps.owner.outputs.status }}" && -z "${{ steps.pr_info.outputs.status }}" && -z "${{ steps.deploy.outputs.status }}" ]]; then
+            MESSAGE=">OK\n"
+          else
             MESSAGE+=">Something went wrong, check [GitHub Workflow run output](${GITHUB_WORKFLOW_URL})\n"
           fi
 
           echo "## Deployment Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Status            | Message                                 |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------------------|-----------------------------------------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Overall           | $MESSAGE                                |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "For more details, see the [workflow run]($GITHUB_WORKFLOW_URL)" >> $GITHUB_STEP_SUMMARY
+          echo "| Check               | Status                |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------------------|-----------------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Owner Check         | $OWNER_CHECK_FLAG     |" >> $GITHUB_STEP_SUMMARY
+          echo "| PR Info Check       | $PR_INFO_CHECK_FLAG   |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment Check    | $DEPLOY_CHECK_FLAG    |" >> $GITHUB_STEP_SUMMARY
 
           # Store message for potential comment
           echo "message=$MESSAGE" >> $GITHUB_OUTPUT
