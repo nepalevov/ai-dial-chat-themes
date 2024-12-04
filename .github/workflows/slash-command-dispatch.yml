@@ -16,7 +16,7 @@ jobs:
           config: >
             [
               {
-                "command": "deploy",
+                "command": "deploy-review",
                 "issue_type": "pull-request"
               }
             ]
