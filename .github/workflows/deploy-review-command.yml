@@ -87,6 +87,11 @@ jobs:
               HEAD_REPO=$(echo "$PR_DETAILS" | jq -r '.head.repo.full_name // empty')
               HEAD_REF=$(echo "$PR_DETAILS" | jq -r '.head.ref // empty')
             fi
+          else
+            # If all inputs are present, just assign them
+            PR_NUMBER="${INPUT_PR_NUMBER}"
+            HEAD_REPO="${INPUT_HEAD_REPO}"
+            HEAD_REF="${INPUT_HEAD_REF}"
           fi
 
           # Validate and output
