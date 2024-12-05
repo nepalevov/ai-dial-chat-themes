@@ -61,6 +61,7 @@ jobs:
         run: |
           #!/usr/bin/env bash
           set -x # TODO: remove after debug
+          set +e
 
           make_api_call() {
             local url="$1"
