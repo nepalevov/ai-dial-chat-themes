@@ -23,43 +23,60 @@ jobs:
       - name: Check repository owner
         id: owner
         run: |
-          DISPATCHED_REPO_NAME=${{ github.event.client_payload.github.payload.repository.name || github.event.client_payload.github.event.repository.name }}
-          DISPATCHED_REPO_OWNER=${{ github.event.client_payload.github.payload.repository.owner.login || github.event.client_payload.github.event.repository.owner.login }}
-          ERROR_MESSAGE=""
-          if [[ "$DISPATCHED_REPO_OWNER" != "$GITHUB_REPOSITORY_OWNER" ]]; then
-          ERROR_MESSAGE="The event was not dispatched by a repository within the same owner."
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          readonly STATUS_SUCCESS="success"
+          readonly STATUS_FAILURE="failure"
+
+          log_error() {
+            echo "Error: $1" >&2
+          }
+
+          set_failure_status() {
+              local message="$1"
+              log_error "${message}"
+              echo "status=${FAILURE_MESSAGE}" >> "${GITHUB_OUTPUT}"
+              exit 1
+          }
+
+          # Validate repository owner
+          if [[ "${INPUT_DISPATCHED_REPO_OWNER}" != "${GITHUB_REPOSITORY_OWNER}" ]]; then
+              set_failure_status "The event was not dispatched by a repository within the same owner."
           fi
-          if [[ "$DISPATCHED_REPO_NAME" != ai-dial* ]]; then
-          ERROR_MESSAGE+=" The repository name does not start with 'ai-dial'."
+
+          # Validate repository name prefix
+          if [[ "${INPUT_DISPATCHED_REPO_NAME}" != ai-dial* ]]; then
+              set_failure_status "The repository name does not start with '${PREFIX}'."
           fi
-          if [[ -n "$ERROR_MESSAGE" ]]; then
-            echo "$ERROR_MESSAGE"
-            echo "status=$ERROR_MESSAGE" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-          echo "Owner checks passed successfully."
+
+          echo "status=${STATUS_SUCCESS}" >> "${GITHUB_OUTPUT}"
+          echo "Owner checks passed successfully"
+        env:
+          INPUT_DISPATCHED_REPO_OWNER: ${{ github.event.client_payload.github.payload.repository.owner.login || github.event.client_payload.github.event.repository.owner.login }}
+          INPUT_DISPATCHED_REPO_NAME: ${{ github.event.client_payload.github.payload.repository.name || github.event.client_payload.github.event.repository.name }}
 
       - name: Gather PR info
         id: pr_info
         run: |
-          # Try to get values from github context first
-          PR_NUMBER="${{ github.event.client_payload.pull_request.number }}"
-          HEAD_REPO="${{ github.event.client_payload.pull_request.head.repo.full_name }}"
-          HEAD_REF="${{ github.event.client_payload.pull_request.head.ref }}"
+          #!/usr/bin/env bash
+          set -euo pipefail
 
-          # If any required value is missing, try to resolve via API
-          if [[ -z "$PR_NUMBER" || -z "$HEAD_REPO" || -z "$HEAD_REF" ]]; then
-            echo "Some values missing from context, falling back to API resolution..."
+          make_api_call() {
+              local url="$1"
+              curl -s -H "${GITHUB_TOKEN}" "${url}"
+          }
 
+          # If any required input value is missing, try to resolve via API
+          if [[ (-z "$INPUT_PR_NUMBER" || -z "$INPUT_HEAD_REPO" || -z "$INPUT_HEAD_REF") && -n "$INPUT_HEAD_SHA" ]]; then
+            echo "Some INPUT_ values missing but INPUT_HEAD_SHA is set, falling back to API resolution..."
             # Get PR details by commit SHA
-            HEAD_SHA="${{ github.event.client_payload.github.event.workflow_run.head_sha }}"
-            SEARCH_PR_DATA=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
-              "https://api.github.com/search/issues?q=${HEAD_SHA}+repo:${{ github.repository }}+is:pr")
+            SEARCH_PR_DATA=$(make_api_call "${GITHUB_API_URL}/search/issues?q=${INPUT_HEAD_SHA}+repo:${INPUT_BASE_REPO}+is:pr")
 
             PR_URL=$(echo "$SEARCH_PR_DATA" | jq -r '.items[0].pull_request.url')
             if [[ -n "$PR_URL" ]]; then
               PR_NUMBER=$(echo "$SEARCH_PR_DATA" | jq -r '.items[0].number')
-              PR_DETAILS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" "$PR_URL")
+              PR_DETAILS=$(make_api_call "$PR_URL")
               HEAD_REPO=$(echo "$PR_DETAILS" | jq -r .head.repo.full_name)
               HEAD_REF=$(echo "$PR_DETAILS" | jq -r .head.ref)
             fi
@@ -67,15 +84,13 @@ jobs:
 
           # Validate and output
           ERROR_MESSAGE=""
-          if [[ -z "$PR_NUMBER" ]]; then
-            ERROR_MESSAGE+="PR number is missing. "
-          fi
-          if [[ -z "$HEAD_REPO" ]]; then
-            ERROR_MESSAGE+="Head repository is missing. "
-          fi
-          if [[ -z "$HEAD_REF" ]]; then
-            ERROR_MESSAGE+="Head reference is missing. "
-          fi
+          required_vars=("PR_NUMBER" "HEAD_REPO" "HEAD_REF")
+
+          for var in "${required_vars[@]}"; do
+              if [[ -z "${!var}" ]]; then
+                  ERROR_MESSAGE+="${var} is missing. "
+              fi
+          done
 
           if [[ -n "$ERROR_MESSAGE" ]]; then
             echo "$ERROR_MESSAGE"
@@ -85,100 +100,121 @@ jobs:
             echo "HEAD_REF: '$HEAD_REF'"
             echo "Search response:"
             echo "$SEARCH_PR_DATA" | jq '.'
-            if [[ -n "$PR_DETAILS" ]]; then
+            if [[ -n "${PR_DETAILS:-}" ]]; then
               echo "PR details:"
               echo "$PR_DETAILS" | jq '.'
             fi
-            echo "status=Could not resolve required PR information: $ERROR_MESSAGE" >> $GITHUB_OUTPUT
+            output_variable "status" "Could not resolve required PR information: $ERROR_MESSAGE"
             exit 1
           fi
 
+          # TODO: remove after debug?
           echo "| Parameter         | Value       |"
           echo "|-------------------|-------------|"
           echo "| PR_NUMBER         | $PR_NUMBER  |"
           echo "| HEAD_REPO         | $HEAD_REPO  |"
           echo "| HEAD_REF          | $HEAD_REF   |"
-          echo "number=$PR_NUMBER" >> $GITHUB_OUTPUT
-          echo "repo=$HEAD_REPO" >> $GITHUB_OUTPUT
-          echo "ref=$HEAD_REF" >> $GITHUB_OUTPUT
+          output_variable "pr_number" "$PR_NUMBER"
+          output_variable "head_repo" "$HEAD_REPO"
+          output_variable "head_ref" "$HEAD_REF"
 
           # Set trigger URL based on source
-          if [[ "${{ github.event.client_payload.github.action }}" == "scd" ]]; then
+          if [[ "$INPUT_TRIGGER" == "scd" ]]; then
             TRIGGER_URL="${{ github.event.client_payload.github.payload.comment.html_url }}"
-            echo "is_comment_trigger=${{ github.event.client_payload.github.action == 'scd' }}" >> $GITHUB_OUTPUT
+            output_variable "is_comment_trigger" "true"
           else
+            # Only workflow_run is supported for now
             TRIGGER_URL="${{ github.event.client_payload.github.event.workflow_run.html_url }}"
           fi
-          echo "trigger=$TRIGGER_URL" >> $GITHUB_OUTPUT
+          output_variable "trigger_url" "$TRIGGER_URL"
+          echo "PR info gathered successfully"
+          output_variable "status" "success"
         env:
+          INPUT_PR_NUMBER: ${{ github.event.client_payload.pull_request.number }}
+          INPUT_HEAD_REPO: ${{ github.event.client_payload.pull_request.head.repo.full_name }}
+          INPUT_HEAD_REF: ${{ github.event.client_payload.pull_request.head.ref }}
+          INPUT_HEAD_SHA: ${{ github.event.client_payload.github.event.workflow_run.head_sha }}
+          INPUT_BASE_REPO: ${{ github.event.client_payload.github.payload.repository.name || github.event.client_payload.github.event.repository.name }}
+          INPUT_TRIGGER: ${{ github.event.client_payload.github.action }}
           GITHUB_TOKEN: ${{ secrets.ACTIONS_BOT_TOKEN }}
 
       - name: Deploy environment
         id: deploy
         run: |
+          # TODO: remove after debug?
           echo "Deploying with the following parameters:"
-          echo "| Parameter         | Value                                   |"
-          echo "|-------------------|-----------------------------------------|"
-          echo "| GITHUB_PR         | pr-${{ steps.pr_info.outputs.number }}  |"
-          echo "| GITHUB_REPO       | ${{ steps.pr_info.outputs.repo }}       |"
-          echo "| GITHUB_REF        | ${{ steps.pr_info.outputs.ref }}        |"
-          echo "| GITHUB_TRIGGER    | ${{ steps.pr_info.outputs.trigger }}    |"
+          echo "| Parameter         | Value                                       |"
+          echo "|----------------   |---------------------------------------------|"
+          echo "| GITHUB_PR         | pr-${{ steps.pr_info.outputs.pr_number }}   |"
+          echo "| GITHUB_REPO       | ${{ steps.pr_info.outputs.head_repo }}      |"
+          echo "| GITHUB_REF        | ${{ steps.pr_info.outputs.head_ref }}       |"
+          echo "| GITHUB_TRIGGER    | ${{ steps.pr_info.outputs.trigger_url }}    |"
 
-          sleep 30
           echo "status=success" >>$GITHUB_OUTPUT # TODO: remove mock status after debug
 
       - name: Check overall status
         id: status
         if: success() || failure()
         run: |
-          echo "Checking deployment status"
-          GITHUB_WORKFLOW_URL=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          #!/usr/bin/env bash
+          set -euo pipefail
 
-          # Initialize the message
+          # Constants
+          readonly SUCCESS_FLAG="✅"
+          readonly FAILURE_FLAG="❌"
+          readonly WORKFLOW_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          check_status() {
+              local step_status="$1"
+              local display_name="$2"
+              local -n flag_ref="$3"  # Use nameref for flag variable
+
+              if [[ "$step_status" != "success" ]]; then
+                  flag_ref="$FAILURE_FLAG"
+                  echo ">- **${display_name}**: ${step_status}\n"
+              else
+                  flag_ref="$SUCCESS_FLAG"
+                  echo ""
+              fi
+          }
+
+          echo "Checking deployment status..."
+
+          OWNER_CHECK_FLAG="$SUCCESS_FLAG"
+          PR_INFO_CHECK_FLAG="$SUCCESS_FLAG"
+          DEPLOY_CHECK_FLAG="$SUCCESS_FLAG"
           MESSAGE=""
 
-          # Initialize flags
-          OWNER_CHECK_FLAG="✅"
-          PR_INFO_CHECK_FLAG="✅"
-          DEPLOY_CHECK_FLAG="✅"
+          # Check each step status and build message
+          MESSAGE+=$(check_status "${{ steps.owner.outputs.status }}" "Owner check failed" OWNER_CHECK_FLAG)
+          MESSAGE+=$(check_status "${{ steps.pr_info.outputs.status }}" "Find PR failed" PR_INFO_CHECK_FLAG)
+          MESSAGE+=$(check_status "${{ steps.deploy.outputs.status }}" "Deployment failed" DEPLOY_CHECK_FLAG)
 
-          # Owner check
-          if [[ -n "${{ steps.owner.outputs.status }}" ]]; then
-            OWNER_CHECK_FLAG="❌"
-            MESSAGE+=">- **Owner check failed**: ${{ steps.owner.outputs.status }}\n"
-          fi
 
-          # PR info check
-          if [[ -n "${{ steps.pr_info.outputs.status }}" ]]; then
-            PR_INFO_CHECK_FLAG="❌"
-            MESSAGE+=">- **Find PR failed**: ${{ steps.pr_info.outputs.status }}\n"
-          fi
-
-          # Deployment check
-          if [[ "${{ steps.deploy.outputs.status }}" != "success" ]]; then
-            DEPLOY_CHECK_FLAG="❌"
-            MESSAGE+=">- **Deployment failed**: ${{ steps.deploy.outputs.status }}\n"
-          fi
-
-          # If there are no errors, set a success message
-          if [[ -z "${{ steps.owner.outputs.status }}" && -z "${{ steps.pr_info.outputs.status }}" && -z "${{ steps.deploy.outputs.status }}" ]]; then
-            MESSAGE=">OK\n"
+          # Set final message based on status
+          if [[ -z "${{ steps.owner.outputs.status }}" && \
+                -z "${{ steps.pr_info.outputs.status }}" && \
+                -z "${{ steps.deploy.outputs.status }}" ]]; then
+              MESSAGE=">OK\n"
           else
-            MESSAGE+=">Something went wrong, check [GitHub Workflow run output](${GITHUB_WORKFLOW_URL})\n"
+              MESSAGE+=">Check [GitHub Workflow run](${WORKFLOW_URL}) for details\n"
           fi
 
-          echo "## Deployment Status" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Check               | Status                |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------------------|-----------------------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Owner Check         | $OWNER_CHECK_FLAG     |" >> $GITHUB_STEP_SUMMARY
-          echo "| PR Info Check       | $PR_INFO_CHECK_FLAG   |" >> $GITHUB_STEP_SUMMARY
-          echo "| Deployment Check    | $DEPLOY_CHECK_FLAG    |" >> $GITHUB_STEP_SUMMARY
+          # TODO: remove after debug?
+          {
+            echo "## Deployment Status"
+            echo ""
+            echo "| Check               | Status                |"
+            echo "|---------------------|-----------------------|"
+            echo "| Owner Check         | $OWNER_CHECK_FLAG     |"
+            echo "| PR Info Check       | $PR_INFO_CHECK_FLAG   |"
+            echo "| Deployment Check    | $DEPLOY_CHECK_FLAG    |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
           # Store message for potential comment
-          echo "message=$MESSAGE" >> $GITHUB_OUTPUT
+          echo -e "message=$MESSAGE" >> $GITHUB_OUTPUT
 
-      - name: Return status as comment
+      - name: Return status as append to comment
         if: |
           (success() || failure()) &&
           steps.pr_info.outputs.is_comment_trigger == 'true'
