@@ -61,6 +61,7 @@ jobs:
         run: |
           #!/usr/bin/env bash
           set -euo pipefail
+          set -x # TODO: remove after debug
 
           make_api_call() {
               local url="$1"
@@ -158,7 +159,8 @@ jobs:
         run: |
           #!/usr/bin/env bash
           set -euo pipefail
-
+          set -x # TODO: remove after debug
+          
           # Constants
           readonly SUCCESS_FLAG="✅"
           readonly FAILURE_FLAG="❌"
