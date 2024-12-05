@@ -171,17 +171,17 @@ jobs:
           # Check owner status
           if [[ "${{ steps.owner.outputs.status }}" != "success" ]]; then
               OWNER_CHECK_FLAG="$FAILURE_FLAG"
-              MESSAGE+="> Owner check failed: ${{ steps.owner.outputs.status }}"$'\n'
+              MESSAGE+="> ${{ steps.owner.outputs.status }}"$'\n'
           fi
           # Check PR info status
           if [[ "${{ steps.pr_info.outputs.status }}" != "success" ]]; then
               PR_INFO_CHECK_FLAG="$FAILURE_FLAG"
-              MESSAGE+="> Find PR failed: ${{ steps.pr_info.outputs.status }}"$'\n'
+              MESSAGE+="> ${{ steps.pr_info.outputs.status }}"$'\n'
           fi
           # Check deploy status
           if [[ "${{ steps.deploy.outputs.status }}" != "success" ]]; then
               DEPLOY_CHECK_FLAG="$FAILURE_FLAG"
-              MESSAGE+="> Deployment failed: ${{ steps.deploy.outputs.status }}"$'\n'
+              MESSAGE+="> ${{ steps.deploy.outputs.status }}"$'\n'
           fi
 
           # Set final message based on status
@@ -190,7 +190,7 @@ jobs:
                 -z "${{ steps.deploy.outputs.status }}" ]]; then
               MESSAGE="> OK"
           else
-              MESSAGE+="> Check [GitHub Workflow run](${WORKFLOW_URL})"
+              MESSAGE+="> Check [GitHub Workflow run](${WORKFLOW_URL}) for details"
           fi
 
           # Output markdown table
@@ -208,7 +208,7 @@ jobs:
           echo "message<<EOF" >> "$GITHUB_OUTPUT"
           echo "$MESSAGE" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-          
+
           if [[ "$INPUT_TRIGGER" == "scd" ]]; then
             TRIGGER_URL="${{ github.event.client_payload.github.payload.comment.html_url }}"
             echo "is_comment_trigger=true" >>$GITHUB_OUTPUT
