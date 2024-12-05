@@ -152,6 +152,7 @@ jobs:
           echo "| GITHUB_TRIGGER    | ${{ steps.pr_info.outputs.trigger_url }}    |"
 
           echo "status=success" >>$GITHUB_OUTPUT # TODO: remove mock status after debug
+          echo "status=failure" >>$GITHUB_OUTPUT # TODO: remove mock status after debug
 
       - name: Check overall status
         id: status
@@ -189,10 +190,8 @@ jobs:
               MESSAGE+="> ${{ steps.deploy.outputs.status }}"$'\n'
           fi
 
-          # Set final message based on status
-          if [[ -z "${{ steps.owner.outputs.status }}" && \
-                -z "${{ steps.pr_info.outputs.status }}" && \
-                -z "${{ steps.deploy.outputs.status }}" ]]; then
+          # Append workflow run link if needed
+          if [[ -z "$MESSAGE" ]]; then
               MESSAGE="> OK"
           else
               MESSAGE+="> Check [GitHub Workflow run](${WORKFLOW_URL}) for details"
