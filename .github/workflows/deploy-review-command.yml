@@ -67,6 +67,13 @@ jobs:
               curl -s -H "${GITHUB_TOKEN}" "${url}"
           }
 
+          # Function to output variables to GITHUB_OUTPUT
+          output_variable() {
+              local name="$1"
+              local value="$2"
+              echo "${name}=${value}" >> "$GITHUB_OUTPUT"
+          }
+
           # If any required input value is missing, try to resolve via API
           if [[ (-z "$INPUT_PR_NUMBER" || -z "$INPUT_HEAD_REPO" || -z "$INPUT_HEAD_REF") && -n "$INPUT_HEAD_SHA" ]]; then
             echo "Some INPUT_ values missing but INPUT_HEAD_SHA is set, falling back to API resolution..."
