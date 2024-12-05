@@ -61,20 +61,10 @@ jobs:
         run: |
           #!/usr/bin/env bash
           set -x # TODO: remove after debug
-          set +e
 
           make_api_call() {
             local url="$1"
-            local response
-            response=$(curl -s -H "${GITHUB_TOKEN}" "${url}")
-
-            # Check if response contains an error message
-            if echo "$response" | jq -e '.message' >/dev/null; then
-              echo "API Error: $(echo "$response" | jq -r '.message')"
-              return 1
-            fi
-
-            echo "$response"
+            curl -s -H "${GITHUB_TOKEN}" "${url}"
           }
 
           # Function to output variables to GITHUB_OUTPUT
@@ -90,17 +80,12 @@ jobs:
             # Get PR details by commit SHA
             SEARCH_PR_DATA=$(make_api_call "${GITHUB_API_URL}/search/issues?q=${INPUT_HEAD_SHA}+repo:${INPUT_BASE_REPO}+is:pr")
 
-            # Check if API call was successful
-            if [[ $? -eq 0 ]]; then
-              PR_URL=$(echo "$SEARCH_PR_DATA" | jq -r '.items[0].pull_request.url // empty')
-              if [[ -n "$PR_URL" ]]; then
-                PR_NUMBER=$(echo "$SEARCH_PR_DATA" | jq -r '.items[0].number // empty')
-                PR_DETAILS=$(make_api_call "$PR_URL")
-                if [[ $? -eq 0 ]]; then
-                  HEAD_REPO=$(echo "$PR_DETAILS" | jq -r '.head.repo.full_name // empty')
-                  HEAD_REF=$(echo "$PR_DETAILS" | jq -r '.head.ref // empty')
-                fi
-              fi
+            PR_URL=$(echo "$SEARCH_PR_DATA" | jq -r '.items[0].pull_request.url // empty')
+            if [[ -n "$PR_URL" && "$PR_URL" != "null" ]]; then
+              PR_NUMBER=$(echo "$SEARCH_PR_DATA" | jq -r '.items[0].number // empty')
+              PR_DETAILS=$(make_api_call "$PR_URL")
+              HEAD_REPO=$(echo "$PR_DETAILS" | jq -r '.head.repo.full_name // empty')
+              HEAD_REF=$(echo "$PR_DETAILS" | jq -r '.head.ref // empty')
             fi
           fi
 
@@ -116,16 +101,6 @@ jobs:
 
           if [[ -n "$ERROR_MESSAGE" ]]; then
             echo "$ERROR_MESSAGE"
-            echo "Context values:"
-            echo "PR_NUMBER: '$PR_NUMBER'"
-            echo "HEAD_REPO: '$HEAD_REPO'"
-            echo "HEAD_REF: '$HEAD_REF'"
-            echo "Search response:"
-            echo "$SEARCH_PR_DATA" | jq '.' || echo "No valid JSON in SEARCH_PR_DATA"
-            if [[ -n "${PR_DETAILS:-}" ]]; then
-              echo "PR details:"
-              echo "$PR_DETAILS" | jq '.' || echo "No valid JSON in PR_DETAILS"
-            fi
             output_variable "status" "Could not resolve required PR information: $ERROR_MESSAGE"
             exit 1
           fi
