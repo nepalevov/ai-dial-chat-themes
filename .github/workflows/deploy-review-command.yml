@@ -24,7 +24,7 @@ jobs:
         id: owner
         run: |
           #!/usr/bin/env bash
-          set -euo pipefail
+          set -x # TODO: remove after debug
 
           readonly STATUS_SUCCESS="success"
           readonly STATUS_FAILURE="failure"
@@ -60,7 +60,6 @@ jobs:
         id: pr_info
         run: |
           #!/usr/bin/env bash
-          set -euo pipefail
           set -x # TODO: remove after debug
 
           make_api_call() {
@@ -158,9 +157,8 @@ jobs:
         if: success() || failure()
         run: |
           #!/usr/bin/env bash
-          set -euo pipefail
           set -x # TODO: remove after debug
-          
+
           # Constants
           readonly SUCCESS_FLAG="✅"
           readonly FAILURE_FLAG="❌"
@@ -173,7 +171,7 @@ jobs:
 
               if [[ "$step_status" != "success" ]]; then
                   flag_ref="$FAILURE_FLAG"
-                  echo ">- **${display_name}**: ${step_status}\n"
+                  echo "> ${display_name}: ${step_status}"
               else
                   flag_ref="$SUCCESS_FLAG"
                   echo ""
@@ -192,29 +190,30 @@ jobs:
           MESSAGE+=$(check_status "${{ steps.pr_info.outputs.status }}" "Find PR failed" PR_INFO_CHECK_FLAG)
           MESSAGE+=$(check_status "${{ steps.deploy.outputs.status }}" "Deployment failed" DEPLOY_CHECK_FLAG)
 
-
           # Set final message based on status
           if [[ -z "${{ steps.owner.outputs.status }}" && \
                 -z "${{ steps.pr_info.outputs.status }}" && \
                 -z "${{ steps.deploy.outputs.status }}" ]]; then
-              MESSAGE=">OK\n"
+              MESSAGE="> OK"
           else
-              MESSAGE+=">Check [GitHub Workflow run](${WORKFLOW_URL}) for details\n"
+              MESSAGE+="> Check [GitHub Workflow run](${WORKFLOW_URL})"
           fi
 
-          # TODO: remove after debug?
+          # Output markdown table
           {
-            echo "## Deployment Status"
-            echo ""
-            echo "| Check               | Status                |"
-            echo "|---------------------|-----------------------|"
-            echo "| Owner Check         | $OWNER_CHECK_FLAG     |"
-            echo "| PR Info Check       | $PR_INFO_CHECK_FLAG   |"
-            echo "| Deployment Check    | $DEPLOY_CHECK_FLAG    |"
+              echo "## Deployment Status"
+              echo ""
+              echo "| Check               | Status                |"
+              echo "|---------------------|-----------------------|"
+              echo "| Owner Check         | $OWNER_CHECK_FLAG     |"
+              echo "| PR Info Check       | $PR_INFO_CHECK_FLAG   |"
+              echo "| Deployment Check    | $DEPLOY_CHECK_FLAG    |"
           } >> "$GITHUB_STEP_SUMMARY"
 
           # Store message for potential comment
-          echo -e "message=$MESSAGE" >> $GITHUB_OUTPUT
+          echo "message<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$MESSAGE" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Return status as append to comment
         if: |
