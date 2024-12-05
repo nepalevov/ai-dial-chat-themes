@@ -118,9 +118,8 @@ jobs:
           # Set trigger URL based on source
           if [[ "$INPUT_TRIGGER" == "scd" ]]; then
             TRIGGER_URL="${{ github.event.client_payload.github.payload.comment.html_url }}"
-            output_variable "is_comment_trigger" "true"
           else
-            # Only workflow_run is supported for now
+            # Only workflow_run is supported as alternative to slash-command-dispatch for now
             TRIGGER_URL="${{ github.event.client_payload.github.event.workflow_run.html_url }}"
           fi
           output_variable "trigger_url" "$TRIGGER_URL"
@@ -209,11 +208,17 @@ jobs:
           echo "message<<EOF" >> "$GITHUB_OUTPUT"
           echo "$MESSAGE" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-
+          
+          if [[ "$INPUT_TRIGGER" == "scd" ]]; then
+            TRIGGER_URL="${{ github.event.client_payload.github.payload.comment.html_url }}"
+            echo "is_comment_trigger=true" >>$GITHUB_OUTPUT
+          fi
+        env:
+          INPUT_TRIGGER: ${{ github.event.client_payload.github.action }}
       - name: Return status as append to comment
         if: |
           (success() || failure()) &&
-          steps.pr_info.outputs.is_comment_trigger == 'true'
+          steps.status.outputs.is_comment_trigger == 'true'
         uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
         with:
           token: ${{ secrets.ACTIONS_BOT_TOKEN }}
