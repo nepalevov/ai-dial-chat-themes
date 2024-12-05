@@ -63,15 +63,24 @@ jobs:
           set -x # TODO: remove after debug
 
           make_api_call() {
-              local url="$1"
-              curl -s -H "${GITHUB_TOKEN}" "${url}"
+            local url="$1"
+            local response
+            response=$(curl -s -H "${GITHUB_TOKEN}" "${url}")
+
+            # Check if response contains an error message
+            if echo "$response" | jq -e '.message' >/dev/null; then
+              echo "API Error: $(echo "$response" | jq -r '.message')"
+              return 1
+            fi
+
+            echo "$response"
           }
 
           # Function to output variables to GITHUB_OUTPUT
           output_variable() {
-              local name="$1"
-              local value="$2"
-              echo "${name}=${value}" >> "$GITHUB_OUTPUT"
+            local name="$1"
+            local value="$2"
+            echo "${name}=${value}" >>"$GITHUB_OUTPUT"
           }
 
           # If any required input value is missing, try to resolve via API
@@ -80,12 +89,17 @@ jobs:
             # Get PR details by commit SHA
             SEARCH_PR_DATA=$(make_api_call "${GITHUB_API_URL}/search/issues?q=${INPUT_HEAD_SHA}+repo:${INPUT_BASE_REPO}+is:pr")
 
-            PR_URL=$(echo "$SEARCH_PR_DATA" | jq -r '.items[0].pull_request.url')
-            if [[ -n "$PR_URL" ]]; then
-              PR_NUMBER=$(echo "$SEARCH_PR_DATA" | jq -r '.items[0].number')
-              PR_DETAILS=$(make_api_call "$PR_URL")
-              HEAD_REPO=$(echo "$PR_DETAILS" | jq -r .head.repo.full_name)
-              HEAD_REF=$(echo "$PR_DETAILS" | jq -r .head.ref)
+            # Check if API call was successful
+            if [[ $? -eq 0 ]]; then
+              PR_URL=$(echo "$SEARCH_PR_DATA" | jq -r '.items[0].pull_request.url // empty')
+              if [[ -n "$PR_URL" ]]; then
+                PR_NUMBER=$(echo "$SEARCH_PR_DATA" | jq -r '.items[0].number // empty')
+                PR_DETAILS=$(make_api_call "$PR_URL")
+                if [[ $? -eq 0 ]]; then
+                  HEAD_REPO=$(echo "$PR_DETAILS" | jq -r '.head.repo.full_name // empty')
+                  HEAD_REF=$(echo "$PR_DETAILS" | jq -r '.head.ref // empty')
+                fi
+              fi
             fi
           fi
 
@@ -94,9 +108,9 @@ jobs:
           required_vars=("PR_NUMBER" "HEAD_REPO" "HEAD_REF")
 
           for var in "${required_vars[@]}"; do
-              if [[ -z "${!var}" ]]; then
-                  ERROR_MESSAGE+="${var} is missing. "
-              fi
+            if [[ -z "${!var}" ]]; then
+              ERROR_MESSAGE+="${var} is missing. "
+            fi
           done
 
           if [[ -n "$ERROR_MESSAGE" ]]; then
@@ -106,10 +120,10 @@ jobs:
             echo "HEAD_REPO: '$HEAD_REPO'"
             echo "HEAD_REF: '$HEAD_REF'"
             echo "Search response:"
-            echo "$SEARCH_PR_DATA" | jq '.'
+            echo "$SEARCH_PR_DATA" | jq '.' || echo "No valid JSON in SEARCH_PR_DATA"
             if [[ -n "${PR_DETAILS:-}" ]]; then
               echo "PR details:"
-              echo "$PR_DETAILS" | jq '.'
+              echo "$PR_DETAILS" | jq '.' || echo "No valid JSON in PR_DETAILS"
             fi
             output_variable "status" "Could not resolve required PR information: $ERROR_MESSAGE"
             exit 1
