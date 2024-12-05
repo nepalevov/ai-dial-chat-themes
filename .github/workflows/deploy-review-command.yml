@@ -130,7 +130,7 @@ jobs:
           INPUT_HEAD_REPO: ${{ github.event.client_payload.pull_request.head.repo.full_name }}
           INPUT_HEAD_REF: ${{ github.event.client_payload.pull_request.head.ref }}
           INPUT_HEAD_SHA: ${{ github.event.client_payload.github.event.workflow_run.head_sha }}
-          INPUT_BASE_REPO: ${{ github.event.client_payload.github.payload.repository.name || github.event.client_payload.github.event.repository.name }}
+          INPUT_BASE_REPO: ${{ github.event.client_payload.github.payload.repository.full_name || github.event.client_payload.github.event.repository.full_name }}
           INPUT_TRIGGER: ${{ github.event.client_payload.github.action }}
           GITHUB_TOKEN: ${{ secrets.ACTIONS_BOT_TOKEN }}
 
@@ -195,13 +195,11 @@ jobs:
 
           # Output markdown table
           {
-              echo "## Deployment Status"
-              echo ""
-              echo "| Check               | Status                |"
-              echo "|---------------------|-----------------------|"
-              echo "| Owner Check         | $OWNER_CHECK_FLAG     |"
-              echo "| PR Info Check       | $PR_INFO_CHECK_FLAG   |"
-              echo "| Deployment Check    | $DEPLOY_CHECK_FLAG    |"
+            echo "| Check               | Status                |"
+            echo "|---------------------|-----------------------|"
+            echo "| Owner Check         | $OWNER_CHECK_FLAG     |"
+            echo "| PR Info Check       | $PR_INFO_CHECK_FLAG   |"
+            echo "| Deployment Check    | $DEPLOY_CHECK_FLAG    |"
           } >> "$GITHUB_STEP_SUMMARY"
 
           # Store message for potential comment
