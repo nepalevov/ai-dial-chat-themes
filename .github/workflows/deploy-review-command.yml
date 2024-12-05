@@ -164,31 +164,29 @@ jobs:
           readonly FAILURE_FLAG="❌"
           readonly WORKFLOW_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
-          check_status() {
-              local step_status="$1"
-              local display_name="$2"
-              local -n flag_ref="$3"  # Use nameref for flag variable
-
-              if [[ "$step_status" != "success" ]]; then
-                  flag_ref="$FAILURE_FLAG"
-                  echo "> ${display_name}: ${step_status}"
-              else
-                  flag_ref="$SUCCESS_FLAG"
-                  echo ""
-              fi
-          }
-
           echo "Checking deployment status..."
 
+          # Initialize flags and message
           OWNER_CHECK_FLAG="$SUCCESS_FLAG"
           PR_INFO_CHECK_FLAG="$SUCCESS_FLAG"
           DEPLOY_CHECK_FLAG="$SUCCESS_FLAG"
           MESSAGE=""
 
-          # Check each step status and build message
-          MESSAGE+=$(check_status "${{ steps.owner.outputs.status }}" "Owner check failed" OWNER_CHECK_FLAG)
-          MESSAGE+=$(check_status "${{ steps.pr_info.outputs.status }}" "Find PR failed" PR_INFO_CHECK_FLAG)
-          MESSAGE+=$(check_status "${{ steps.deploy.outputs.status }}" "Deployment failed" DEPLOY_CHECK_FLAG)
+          # Check owner status
+          if [[ "${{ steps.owner.outputs.status }}" != "success" ]]; then
+              OWNER_CHECK_FLAG="$FAILURE_FLAG"
+              MESSAGE+="> Owner check failed: ${{ steps.owner.outputs.status }}"$'\n'
+          fi
+          # Check PR info status
+          if [[ "${{ steps.pr_info.outputs.status }}" != "success" ]]; then
+              PR_INFO_CHECK_FLAG="$FAILURE_FLAG"
+              MESSAGE+="> Find PR failed: ${{ steps.pr_info.outputs.status }}"$'\n'
+          fi
+          # Check deploy status
+          if [[ "${{ steps.deploy.outputs.status }}" != "success" ]]; then
+              DEPLOY_CHECK_FLAG="$FAILURE_FLAG"
+              MESSAGE+="> Deployment failed: ${{ steps.deploy.outputs.status }}"$'\n'
+          fi
 
           # Set final message based on status
           if [[ -z "${{ steps.owner.outputs.status }}" && \
