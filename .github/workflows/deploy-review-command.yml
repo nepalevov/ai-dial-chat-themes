@@ -20,42 +20,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Check repository owner
-        id: owner
-        run: |
-          #!/usr/bin/env bash
-          set -x # TODO: remove after debug
-
-          readonly STATUS_SUCCESS="success"
-          readonly STATUS_FAILURE="failure"
-
-          log_error() {
-            echo "Error: $1" >&2
-          }
-
-          set_failure_status() {
-              local message="$1"
-              log_error "${message}"
-              echo "status=${FAILURE_MESSAGE}" >> "${GITHUB_OUTPUT}"
-              exit 1
-          }
-
-          # Validate repository owner
-          if [[ "${INPUT_DISPATCHED_REPO_OWNER}" != "${GITHUB_REPOSITORY_OWNER}" ]]; then
-              set_failure_status "The event was not dispatched by a repository within the same owner."
-          fi
-
-          # Validate repository name prefix
-          if [[ "${INPUT_DISPATCHED_REPO_NAME}" != ai-dial* ]]; then
-              set_failure_status "The repository name does not start with '${PREFIX}'."
-          fi
-
-          echo "status=${STATUS_SUCCESS}" >> "${GITHUB_OUTPUT}"
-          echo "Owner checks passed successfully"
-        env:
-          INPUT_DISPATCHED_REPO_OWNER: ${{ github.event.client_payload.github.payload.repository.owner.login || github.event.client_payload.github.event.repository.owner.login }}
-          INPUT_DISPATCHED_REPO_NAME: ${{ github.event.client_payload.github.payload.repository.name || github.event.client_payload.github.event.repository.name }}
-
       - name: Gather PR info
         id: pr_info
         run: |
