@@ -8,13 +8,20 @@ on:
       - completed
 
 jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump GitHub context
+        run: echo "$GITHUB_CONTEXT"
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+
   deploy:
     runs-on: ubuntu-latest
     permissions:
       actions: read # Needed to access artifacts
       packages: write # To push to GHCR
       contents: read
-
     steps:
       - name: Set Up Variables
         id: vars
