@@ -8,25 +8,44 @@ on:
       - completed
 
 jobs:
-  debug:
+  deploy:
     runs-on: ubuntu-latest
+    permissions:
+      actions: read # Needed to access artifacts
+      packages: write # To push to GHCR
+      contents: read
+
     steps:
-      - name: Dump GitHub context
-        run: echo "$GITHUB_CONTEXT"
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
-  # deploy:
-  #   runs-on: ubuntu-latest
-  #   environment: huh
-  #   steps:
-  #     - name: Repository Dispatch
-  #       id: rd
-  #       if: ${{ github.event.workflow_run.conclusion == 'success' }}
-  #       uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
-  #       with:
-  #         token: ${{ secrets.ACTIONS_BOT_TOKEN }}
-  #         event-type: deploy-review-command
-  #         client-payload: |-
-  #           {
-  #             "github": ${{ toJson(github) }}
-  #           }
+      - name: Set Up Variables
+        id: vars
+        run: |
+          set -x # TODO: remove after debug
+          echo "sha=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+          echo "run_id=${{ github.event.workflow_run.id }}" >> $GITHUB_OUTPUT
+
+          # In case of container image name != repository name, provide additional outputs
+          echo "repository_name=${{ github.event.repository.name }}" >> $GITHUB_OUTPUT
+          echo "repository_owner=${{ github.event.repository.owner.login }}" >> $GITHUB_OUTPUT
+
+      - name: Download Artifact from Previous Workflow Run
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.vars.outputs.sha }}
+          path: /tmp
+          run-id: ${{ steps.vars.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load Docker Image
+        run: |
+          docker load --input ./artifact/${{ steps.vars.outputs.sha }}.tar
+          docker image ls
+          docker image inspect ghcr.io/${{ github.repository }}:${{ steps.vars.outputs.sha }}
+
+      # - uses: nepalevov/ai-dial-ci/actions/build_docker@main
+      #   with:
+      #     ghcr_username: ${{ github.actor }}
+      #     ghcr_password: ${{ secrets.ACTIONS_BOT_TOKEN }}
+      #     image_name: ghcr.io/${{ github.repository }}
+      #     image_tag: ${{ steps.vars.outputs.sha }}
+      #     push: true
+      #     push_ghcr: true
