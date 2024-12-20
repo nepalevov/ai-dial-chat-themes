@@ -109,7 +109,7 @@ jobs:
           run-id: ${{ needs.prepare.outputs.workflow_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Find and Load Docker Image
-      if: ${{ !needs.prepare.outputs.image_available && needs.prepare.outputs.artifact_available }}
+        if: ${{ !needs.prepare.outputs.image_available && needs.prepare.outputs.artifact_available }}
         id: load_image
         run: |
           #!/bin/bash
