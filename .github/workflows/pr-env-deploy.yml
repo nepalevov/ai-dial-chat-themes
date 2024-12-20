@@ -8,13 +8,74 @@ on:
       - completed
 
 jobs:
-  debug:
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.pr_context.outputs.pr_number }}
+      merge_commit_sha: ${{ steps.pr_context.outputs.merge_commit_sha }}
+      head_repo_owner: ${{ steps.pr_context.outputs.head_repo_owner }}
+      head_repo_name: ${{ steps.pr_context.outputs.head_repo_name }}
+      head_branch: ${{ steps.pr_context.outputs.head_branch }}
+      workflow_run_id: ${{ steps.pr_context.outputs.workflow_run_id }}
+      artifact_name: ${{ steps.pr_context.outputs.artifact_name }}
+      artifact_available: ${{ steps.pr_context.outputs.artifact_available }}
     steps:
-      - name: Dump GitHub context
+      - name: Dump GitHub context # TODO: remove after debug
         run: echo "$GITHUB_CONTEXT"
         env:
           GITHUB_CONTEXT: ${{ toJson(github) }}
+      - name: Get PR context
+        id: pr_context
+        run: |
+          #!/bin/bash
+
+          # Search for PR using the commit SHA
+          PR_DATA=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "${GITHUB_API_URL}/search/issues?q=${INPUT_HEAD_SHA}+repo:${INPUT_BASE_REPOSITORY}+is:pr+is:open")
+
+          echo "$PR_DATA" # TODO: remove after debug
+
+          # Get PR number
+          PR_NUMBER=$(echo "$PR_DATA" | jq -r '.items[0].number')
+
+          # Get PR details including merge commit SHA and head repo info
+          PR_DETAILS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "${GITHUB_API_URL}/repos/${INPUT_BASE_REPOSITORY}/pulls/${PR_NUMBER}")
+
+          # Extract all required information
+          MERGE_COMMIT_SHA=$(echo "$PR_DETAILS" | jq -r '.merge_commit_sha')
+          HEAD_REPO_OWNER=$(echo "$PR_DETAILS" | jq -r '.head.repo.owner.login')
+          HEAD_REPO_NAME=$(echo "$PR_DETAILS" | jq -r '.head.repo.name')
+          HEAD_BRANCH=$(echo "$PR_DETAILS" | jq -r '.head.ref')
+
+          # Check if artifact exists and not expired
+          ARTIFACT_NAME="$MERGE_COMMIT_SHA"
+          ARTIFACTS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+          "${GITHUB_API_URL}/repos/${INPUT_BASE_REPOSITORY}/actions/runs/${INPUT_WORKFLOW_RUN_ID}/artifacts")
+          ARTIFACT_AVAILABLE=$(echo "$ARTIFACTS" | jq --arg name "$ARTIFACT_NAME" '.artifacts | any(.name == $name and .expired == false)')
+
+          # Set outputs
+          echo "pr_number=$PR_NUMBER" >>$GITHUB_OUTPUT
+          echo "merge_commit_sha=$MERGE_COMMIT_SHA" >>$GITHUB_OUTPUT
+          echo "head_repo_owner=$HEAD_REPO_OWNER" >>$GITHUB_OUTPUT
+          echo "head_repo_name=$HEAD_REPO_NAME" >>$GITHUB_OUTPUT
+          echo "head_branch=$HEAD_BRANCH" >>$GITHUB_OUTPUT
+          echo "workflow_run_id=${{ github.event.workflow_run.id }}" >>$GITHUB_OUTPUT
+          echo artifact_name=$ARTIFACT_NAME >>$GITHUB_OUTPUT
+          echo "artifact_available=$ARTIFACT_AVAILABLE" >>$GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_BASE_REPOSITORY: ${{ github.repository }}
+          INPUT_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          INPUT_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+
+  plan:
+    needs:
+      - prepare
+    uses: nepalevov/ai-dial-ci/.github/workflows/gh_environment.yml@main
+    with:
+      operation: plan
+      environment_name: "pr-${{ needs.prepare.outputs.pr_number }}"
 
   deploy:
     runs-on: ubuntu-latest
@@ -22,31 +83,37 @@ jobs:
       actions: read # Needed to access artifacts
       packages: write # To push to GHCR
       contents: read
+    needs:
+      - prepare
+      - plan
+    environment:
+      name: ${{ needs.plan.outputs.environment_name }}
     steps:
-      - name: Set Up Variables
-        id: vars
-        run: |
-          set -x # TODO: remove after debug
-          echo "sha=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
-          echo "run_id=${{ github.event.workflow_run.id }}" >> $GITHUB_OUTPUT
-
-          # In case of container image name != repository name, provide additional outputs
-          echo "repository_name=${{ github.event.repository.name }}" >> $GITHUB_OUTPUT
-          echo "repository_owner=${{ github.event.repository.owner.login }}" >> $GITHUB_OUTPUT
-
       - name: Download Artifact from Previous Workflow Run
+        if: ${{ needs.prepare.outputs.artifact_available }}
         uses: actions/download-artifact@v4
         with:
-          name: ${{ steps.vars.outputs.sha }}
+          name: ${{ needs.prepare.outputs.artifact_name }}
           path: /tmp
-          run-id: ${{ steps.vars.outputs.run_id }}
+          run-id: ${{ needs.prepare.outputs.workflow_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Load Docker Image
+      - name: Find and Load Docker Image
+        id: load_image
         run: |
-          docker load --input ./artifact/${{ steps.vars.outputs.sha }}.tar
-          docker image ls
-          docker image inspect ghcr.io/${{ github.repository }}:${{ steps.vars.outputs.sha }}
+          docker image ls # TODO: remove after debug
+          ARTIFACT=/tmp/${{ needs.prepare.outputs.artifact_name }}.tar
+          if [ -f "$ARTIFACT" ]; then
+            docker load --input "$ARTIFACT"
+            docker image ls # TODO: remove after debug
+            IMAGE_TAG=$(basename "$ARTIFACT" .tar)
+            docker image inspect ghcr.io/${INPUT_IMAGE_NAME}:${IMAGE_TAG}
+            echo "image_tag=$IMAGE_TAG" >>$GITHUB_OUTPUT
+          else
+            echo "Artifact not found"
+            exit 1
+          fi
+        env:
+          INPUT_IMAGE_NAME: ${{ github.repository }}
 
       # - uses: nepalevov/ai-dial-ci/actions/build_docker@main
       #   with:
