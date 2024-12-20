@@ -46,7 +46,7 @@ jobs:
           # Search for the image tag in GHCR
           IMAGE_NAME="${INPUT_BASE_REPOSITORY}"
           IMAGE_TAG="${MERGE_COMMIT_SHA}"
-          TAGS=$(skopeo list-tags --registry-token "$GITHUB_TOKEN" \
+          TAGS=$(skopeo list-tags \
             "docker://ghcr.io/${IMAGE_NAME}")
           IMAGE_AVAILABLE=$(echo "$TAGS" | jq --arg tag "$IMAGE_TAG" '.Tags | index($tag) != null')
 
