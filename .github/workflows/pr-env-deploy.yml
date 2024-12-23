@@ -22,7 +22,7 @@ jobs:
       image_available: ${{ steps.copy.outputs.image_available || steps.context.outputs.image_available }}
       image_name: ${{ steps.copy.outputs.image_name || steps.context.outputs.image_name }}
       image_tag: ${{ steps.copy.outputs.image_tag || steps.context.outputs.image_tag }}
-      image_digest: ${{ steps.context.outputs.image_digest }}
+      image_digest: ${{ steps.copy.outputs.image_digest || steps.context.outputs.image_digest }}
       workflow_run_id: ${{ steps.context.outputs.workflow_run_id }}
       artifact_name: ${{ steps.context.outputs.artifact_name }}
       artifact_available: ${{ steps.context.outputs.artifact_available }}
@@ -87,24 +87,6 @@ jobs:
             exit 1
           fi
 
-          # Create markdown build summary TODO: remove after debug?
-          {
-            echo "| Variable            | Value                 |"
-            echo "|---------------------|-----------------------|"
-            echo "| pr_number           | ${PR_NUMBER}          |"
-            echo "| merge_commit_sha    | ${MERGE_COMMIT_SHA}   |"
-            echo "| head_repo_owner     | ${HEAD_REPO_OWNER}    |"
-            echo "| head_repo_name      | ${HEAD_REPO_NAME}     |"
-            echo "| head_branch         | ${HEAD_BRANCH}        |"
-            echo "| image_name          | ${IMAGE_NAME}         |"
-            echo "| image_tag           | ${IMAGE_TAG}          |"
-            echo "| image_available     | ${IMAGE_AVAILABLE}    |"
-            echo "| image_digest        | ${IMAGE_DIGEST}       |"
-            echo "| workflow_run_id     | ${WORKFLOW_RUN_ID}    |"
-            echo "| artifact_name       | ${ARTIFACT_NAME}      |"
-            echo "| artifact_available  | ${ARTIFACT_AVAILABLE} |"
-          } >>"$GITHUB_STEP_SUMMARY"
-
           # Set outputs
           echo "pr_number=$PR_NUMBER" >>$GITHUB_OUTPUT
           echo "merge_commit_sha=$MERGE_COMMIT_SHA" >>$GITHUB_OUTPUT
@@ -151,9 +133,15 @@ jobs:
           if skopeo copy \
             docker-archive:${INPUT_ARTIFACT_FILE} \
             docker://ghcr.io/${TARGET_IMAGE_NAME}:${TARGET_IMAGE_TAG}; then
+            # Get the digest of the uploaded image
+            IMAGE_DIGEST=$(skopeo inspect \
+              --retry-times 3 \
+              --format '{{ .Digest }}' \
+              "docker://ghcr.io/${TARGET_IMAGE_NAME}:${TARGET_IMAGE_TAG}")
             echo "image_available=true" >>$GITHUB_OUTPUT
             echo "image_name=${TARGET_IMAGE_NAME}" >>$GITHUB_OUTPUT
             echo "image_tag=${TARGET_IMAGE_TAG}" >>$GITHUB_OUTPUT
+            echo "image_digest=${IMAGE_DIGEST}" >>$GITHUB_OUTPUT
           else
             echo "::error::Failed to copy image to GHCR"
             exit 1
@@ -162,6 +150,25 @@ jobs:
           INPUT_ARTIFACT_FILE: /tmp/${{ steps.context.outputs.artifact_name }}.tar
           INPUT_IMAGE_NAME: ${{ steps.context.outputs.image_name }}
           INPUT_IMAGE_TAG: ${{ steps.context.outputs.image_tag }}
+
+      - name: Create Job Summary # TODO: remove after debug?
+        run: |
+          {
+            echo "| Variable            | Value                                                                               |"
+            echo "|---------------------|-------------------------------------------------------------------------------------|"
+            echo "| pr_number           | ${{ steps.context.outputs.pr_number }}                                              |"
+            echo "| merge_commit_sha    | ${{ steps.context.outputs.merge_commit_sha }}                                       |"
+            echo "| head_repo_owner     | ${{ steps.context.outputs.head_repo_owner }}                                        |"
+            echo "| head_repo_name      | ${{ steps.context.outputs.head_repo_name }}                                         |"
+            echo "| head_branch         | ${{ steps.context.outputs.head_branch }}                                            |"
+            echo "| image_name          | ${{ steps.copy.outputs.image_name || steps.context.outputs.image_name }}            |"
+            echo "| image_tag           | ${{ steps.copy.outputs.image_tag || steps.context.outputs.image_tag }}              |"
+            echo "| image_available     | ${{ steps.copy.outputs.image_available || steps.context.outputs.image_available }}  |"
+            echo "| image_digest        | ${{ steps.copy.outputs.image_digest || steps.context.outputs.image_digest }}        |"
+            echo "| workflow_run_id     | ${{ steps.context.outputs.workflow_run_id }}                                        |"
+            echo "| artifact_name       | ${{ steps.context.outputs.artifact_name }}                                          |"
+            echo "| artifact_available  | ${{ steps.context.outputs.artifact_available }}                                     |"
+          } >>"$GITHUB_STEP_SUMMARY"
 
   plan:
     needs:
@@ -202,3 +209,6 @@ jobs:
           ref: ${{ needs.prepare.outputs.merge_commit_sha }}
           lfs: true
           persist-credentials: false
+      - name: test
+        run: |
+          cat ./deploy/.test
