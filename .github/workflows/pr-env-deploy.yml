@@ -10,22 +10,22 @@ on:
 jobs:
   prepare:
     runs-on: ubuntu-latest
-    outputs:
-      pr_number: ${{ steps.pr_context.outputs.pr_number }}
-      merge_commit_sha: ${{ steps.pr_context.outputs.merge_commit_sha }}
-      head_repo_owner: ${{ steps.pr_context.outputs.head_repo_owner }}
-      head_repo_name: ${{ steps.pr_context.outputs.head_repo_name }}
-      head_branch: ${{ steps.pr_context.outputs.head_branch }}
-      image_name: ${{ steps.pr_context.outputs.image_name }}
-      image_tag: ${{ steps.pr_context.outputs.image_tag }}
-      image_available: ${{ steps.pr_context.outputs.image_available }}
-      image_digest: ${{ steps.pr_context.outputs.image_digest }}
-      workflow_run_id: ${{ steps.pr_context.outputs.workflow_run_id }}
-      artifact_name: ${{ steps.pr_context.outputs.artifact_name }}
-      artifact_available: ${{ steps.pr_context.outputs.artifact_available }}
     permissions:
       contents: read
       packages: write
+    outputs:
+      pr_number: ${{ steps.context.outputs.pr_number }}
+      merge_commit_sha: ${{ steps.context.outputs.merge_commit_sha }}
+      head_repo_owner: ${{ steps.context.outputs.head_repo_owner }}
+      head_repo_name: ${{ steps.context.outputs.head_repo_name }}
+      head_branch: ${{ steps.context.outputs.head_branch }}
+      image_available: ${{ steps.copy.outputs.image_available || steps.context.outputs.image_available }}
+      image_name: ${{ steps.copy.outputs.image_name || steps.context.outputs.image_name }}
+      image_tag: ${{ steps.copy.outputs.image_tag || steps.context.outputs.image_tag }}
+      image_digest: ${{ steps.context.outputs.image_digest }}
+      workflow_run_id: ${{ steps.context.outputs.workflow_run_id }}
+      artifact_name: ${{ steps.context.outputs.artifact_name }}
+      artifact_available: ${{ steps.context.outputs.artifact_available }}
     steps:
       - name: Dump GitHub context # TODO: remove after debug
         run: echo "$GITHUB_CONTEXT"
@@ -37,8 +37,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Get PR context
-        id: pr_context
+      - name: Get context
+        id: context
         run: |
           #!/bin/bash
           set -x # TODO: remove after debug
@@ -123,6 +123,45 @@ jobs:
           INPUT_BASE_REPOSITORY: ${{ github.repository }}
           INPUT_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           INPUT_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+      - name: Download Artifact from Previous Workflow Run
+        if: ${{ steps.context.outputs.image_available == 'false' && steps.context.outputs.artifact_available == 'true' }}
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: ${{ steps.context.outputs.artifact_name }}
+          path: /tmp
+          run-id: ${{ steps.context.outputs.workflow_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Copy Container Image from Artifact to GHCR
+        if: ${{ steps.context.outputs.image_available == 'false' && steps.context.outputs.artifact_available == 'true' }}
+        id: copy
+        run: |
+          #!/bin/bash
+          set -x # TODO: remove after debug
+
+          if [ -f "$INPUT_ARTIFACT_FILE" ]; then
+            docker load --input "$INPUT_ARTIFACT_FILE"
+          else
+            echo "::error::Artifact file not found"
+            exit 1
+          fi
+
+          TARGET_IMAGE_NAME="${INPUT_IMAGE_NAME}" # TODO: add `test` suffix to the image name to avoid conflicts with the main image
+          TARGET_IMAGE_TAG="${INPUT_IMAGE_TAG}"
+
+          if skopeo copy \
+            docker-archive:${INPUT_ARTIFACT_FILE} \
+            docker://ghcr.io/${TARGET_IMAGE_NAME}:${TARGET_IMAGE_TAG}; then
+            echo "image_available=true" >>$GITHUB_OUTPUT
+            echo "image_name=${TARGET_IMAGE_NAME}" >>$GITHUB_OUTPUT
+            echo "image_tag=${TARGET_IMAGE_TAG}" >>$GITHUB_OUTPUT
+          else
+            echo "::error::Failed to copy image to GHCR"
+            exit 1
+          fi
+        env:
+          INPUT_ARTIFACT_FILE: /tmp/${{ steps.context.outputs.artifact_name }}.tar
+          INPUT_IMAGE_NAME: ${{ steps.context.outputs.image_name }}
+          INPUT_IMAGE_TAG: ${{ steps.context.outputs.image_tag }}
 
   plan:
     needs:
@@ -136,8 +175,7 @@ jobs:
     if: ${{ needs.prepare.outputs.image_available == 'true' || needs.prepare.outputs.artifact_available == 'true' }}
     runs-on: ubuntu-latest
     permissions:
-      actions: read # Needed to access artifacts
-      packages: write # To push to GHCR
+      packages: read
       contents: read
     needs:
       - prepare
@@ -145,12 +183,10 @@ jobs:
     environment:
       name: ${{ needs.plan.outputs.environment_name }}
     env:
-      INPUT_ARTIFACT_NAME: ${{ needs.prepare.outputs.artifact_name }}
-      INPUT_ARTIFACT_FILE: /tmp/${{ needs.prepare.outputs.artifact_name }}.tar
       INPUT_IMAGE_NAME: ${{ needs.prepare.outputs.image_name }}
       INPUT_IMAGE_TAG: ${{ needs.prepare.outputs.image_tag }}
     steps:
-      - name: Log in to the Container registry
+      - name: Log in to the Container registry # TODO: remove after debug
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ghcr.io
@@ -160,43 +196,9 @@ jobs:
         if: ${{ needs.prepare.outputs.image_available == 'true' }}
         run: |
           docker pull ghcr.io/${INPUT_IMAGE_NAME}:${INPUT_IMAGE_TAG}
-      - name: Download Artifact from Previous Workflow Run
-        if: ${{ needs.prepare.outputs.image_available == 'false' && needs.prepare.outputs.artifact_available == 'true' }}
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: ${{ env.INPUT_ARTIFACT_NAME }}
-          path: /tmp
-          run-id: ${{ needs.prepare.outputs.workflow_run_id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Load Container Image from Artifact
-        if: ${{ needs.prepare.outputs.image_available == 'false' && needs.prepare.outputs.artifact_available == 'true' }}
-        id: load_image
-        run: |
-          #!/bin/bash
-          set -x # TODO: remove after debug
-
-          if [ -f "$INPUT_ARTIFACT_FILE" ]; then
-            docker load --input "$INPUT_ARTIFACT_FILE"
-          else
-            echo "::error::Artifact file not found"
-            exit 1
-          fi
-      - name: List and Inspect Container Images # TODO: remove after debug
-        run: |
-          docker image ls
           docker inspect ghcr.io/${INPUT_IMAGE_NAME}:${INPUT_IMAGE_TAG}
-      - name: Push Container Image to GHCR
-        if: ${{ needs.prepare.outputs.image_available == 'false' && needs.prepare.outputs.artifact_available == 'true' }}
-        run: |
-          skopeo copy \
-            docker-archive:${INPUT_ARTIFACT_FILE} \
-            docker://ghcr.io/${INPUT_IMAGE_NAME}:${INPUT_IMAGE_TAG}
-
-      # - uses: nepalevov/ai-dial-ci/actions/build_docker@main
-      #   with:
-      #     ghcr_username: ${{ github.actor }}
-      #     ghcr_password: ${{ secrets.ACTIONS_BOT_TOKEN }}
-      #     image_name: ghcr.io/${{ github.repository }}
-      #     image_tag: ${{ steps.vars.outputs.sha }}
-      #     push: true
-      #     push_ghcr: true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.prepare.outputs.merge_commit_sha }}
+          lfs: true
+          persist-credentials: false
