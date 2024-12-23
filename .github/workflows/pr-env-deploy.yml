@@ -41,18 +41,24 @@ jobs:
         id: pr_context
         run: |
           #!/bin/bash
-          set -x
+          set -x # TODO: remove after debug
+
+          # Create temporary files
+          PRS_DATA_FILE=$(mktemp)
+          PR_DATA_FILE=$(mktemp)
+          ARTIFACTS_DATA_FILE=$(mktemp)
 
           # Search for PR using the commit SHA and extract all required information
-          PR_DATA=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "${GITHUB_API_URL}/search/issues?q=${INPUT_HEAD_SHA}+repo:${INPUT_BASE_REPOSITORY}+is:pr+is:open")
-          PR_NUMBER=$(echo "$PR_DATA" | jq -r '.items[0].number')
-          PR_DETAILS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "${GITHUB_API_URL}/repos/${INPUT_BASE_REPOSITORY}/pulls/${PR_NUMBER}")
-          MERGE_COMMIT_SHA=$(echo "$PR_DETAILS" | jq -r '.merge_commit_sha')
-          HEAD_REPO_OWNER=$(echo "$PR_DETAILS" | jq -r '.head.repo.owner.login')
-          HEAD_REPO_NAME=$(echo "$PR_DETAILS" | jq -r '.head.repo.name')
-          HEAD_BRANCH=$(echo "$PR_DETAILS" | jq -r '.head.ref')
+          curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "${GITHUB_API_URL}/search/issues?q=${INPUT_HEAD_SHA}+repo:${INPUT_BASE_REPOSITORY}+is:pr+is:open" >"$PRS_DATA_FILE"
+          PR_NUMBER=$(jq -r '.items[0].number' "$PRS_DATA_FILE")
+
+          curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "${GITHUB_API_URL}/repos/${INPUT_BASE_REPOSITORY}/pulls/${PR_NUMBER}" >"$PR_DATA_FILE"
+          MERGE_COMMIT_SHA=$(jq -r '.merge_commit_sha' "$PR_DATA_FILE")
+          HEAD_REPO_OWNER=$(jq -r '.head.repo.owner.login' "$PR_DATA_FILE")
+          HEAD_REPO_NAME=$(jq -r '.head.repo.name' "$PR_DATA_FILE")
+          HEAD_BRANCH=$(jq -r '.head.ref' "$PR_DATA_FILE")
 
           # Search for the image tag in GHCR
           IMAGE_NAME="${INPUT_BASE_REPOSITORY}"
@@ -69,13 +75,16 @@ jobs:
 
           # Search for the artifact
           ARTIFACT_NAME="$MERGE_COMMIT_SHA"
-          ARTIFACTS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "${GITHUB_API_URL}/repos/${INPUT_BASE_REPOSITORY}/actions/runs/${INPUT_WORKFLOW_RUN_ID}/artifacts")
-          ARTIFACT_AVAILABLE=$(echo "$ARTIFACTS" | jq --arg name "$ARTIFACT_NAME" '.artifacts | any(.name == $name and .expired == false)')
+          curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "${GITHUB_API_URL}/repos/${INPUT_BASE_REPOSITORY}/actions/runs/${INPUT_WORKFLOW_RUN_ID}/artifacts" >"$ARTIFACTS_DATA_FILE"
+          ARTIFACT_AVAILABLE=$(jq --arg name "$ARTIFACT_NAME" '.artifacts | any(.name == $name and .expired == false)' "$ARTIFACTS_DATA_FILE")
+
+          # Clean up temporary files
+          rm -f "$PRS_DATA_FILE" "$PR_DATA_FILE" "$ARTIFACTS_DATA_FILE"
 
           # Exit with error if neither image nor artifact is found
           if [ "$IMAGE_AVAILABLE" != "true" ] && [ "$ARTIFACT_AVAILABLE" != "true" ]; then
-            echo "Error: Neither image nor image artifact found."
+            echo "::error::Neither image nor image artifact found, cannot proceed. Run the build workflow first"
             exit 1
           fi
 
@@ -95,7 +104,7 @@ jobs:
             echo "| workflow_run_id     | ${WORKFLOW_RUN_ID}    |"
             echo "| artifact_name       | ${ARTIFACT_NAME}      |"
             echo "| artifact_available  | ${ARTIFACT_AVAILABLE} |"
-          } >> "$GITHUB_STEP_SUMMARY"
+          } >>"$GITHUB_STEP_SUMMARY"
 
           # Set outputs
           echo "pr_number=$PR_NUMBER" >>$GITHUB_OUTPUT
@@ -125,6 +134,7 @@ jobs:
       environment_name: "pr-${{ needs.prepare.outputs.pr_number }}"
 
   deploy:
+    if: ${{ needs.prepare.outputs.image_available || needs.prepare.outputs.artifact_available }}
     runs-on: ubuntu-latest
     permissions:
       actions: read # Needed to access artifacts
@@ -135,33 +145,47 @@ jobs:
       - plan
     environment:
       name: ${{ needs.plan.outputs.environment_name }}
+    env:
+      INPUT_ARTIFACT_NAME: ${{ needs.prepare.outputs.artifact_name }}
+      INPUT_IMAGE_NAME: ${{ needs.prepare.outputs.image_name }}
+      INPUT_IMAGE_TAG: ${{ needs.prepare.outputs.image_tag }}
     steps:
+      - name: Log in to the Container registry
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Load Container Image from GHCR # TODO: remove after debug
+        if: ${{ needs.prepare.outputs.image_available }}
+        run: |
+          docker pull ghcr.io/${INPUT_IMAGE_NAME}:${INPUT_IMAGE_TAG}
       - name: Download Artifact from Previous Workflow Run
         if: ${{ !needs.prepare.outputs.image_available && needs.prepare.outputs.artifact_available }}
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: ${{ needs.prepare.outputs.artifact_name }}
+          name: ${INPUT_ARTIFACT_NAME}
           path: /tmp
           run-id: ${{ needs.prepare.outputs.workflow_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Find and Load Docker Image
+      - name: Load Container Image from Artifact
         if: ${{ !needs.prepare.outputs.image_available && needs.prepare.outputs.artifact_available }}
         id: load_image
         run: |
           #!/bin/bash
+          set -x # TODO: remove after debug
+
           ARTIFACT_FILE=/tmp/${INPUT_ARTIFACT_NAME}.tar
           if [ -f "$ARTIFACT_FILE" ]; then
             docker load --input "$ARTIFACT_FILE"
-            docker image inspect ghcr.io/${INPUT_IMAGE_NAME}:${INPUT_IMAGE_TAG}
-            echo "image_tag=$IMAGE_TAG" >>$GITHUB_OUTPUT
           else
-            echo "Artifact file not found"
+            echo "::error::Artifact file not found"
             exit 1
           fi
-        env:
-          INPUT_ARTIFACT_NAME: ${{ needs.prepare.outputs.artifact_name }}
-          INPUT_IMAGE_NAME: ${{ needs.prepare.outputs.image_name }}
-          INPUT_IMAGE_TAG: ${{ needs.prepare.outputs.image_tag }}
+      - name: List and Inspect Container Images # TODO: remove after debug
+        run: |
+          docker images ls
+          docker inspect ghcr.io/${INPUT_IMAGE_NAME}:${INPUT_IMAGE_TAG}
 
       # - uses: nepalevov/ai-dial-ci/actions/build_docker@main
       #   with:
