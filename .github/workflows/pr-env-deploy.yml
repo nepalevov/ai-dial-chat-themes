@@ -41,6 +41,7 @@ jobs:
         id: pr_context
         run: |
           #!/bin/bash
+          set -x
 
           # Search for PR using the commit SHA and extract all required information
           PR_DATA=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
@@ -77,6 +78,24 @@ jobs:
             echo "Error: Neither image nor image artifact found."
             exit 1
           fi
+
+          # Create markdown build summary TODO: remove after debug?
+          {
+            echo "| Variable            | Value                 |"
+            echo "|---------------------|-----------------------|"
+            echo "| pr_number           | ${PR_NUMBER}          |"
+            echo "| merge_commit_sha    | ${MERGE_COMMIT_SHA}   |"
+            echo "| head_repo_owner     | ${HEAD_REPO_OWNER}    |"
+            echo "| head_repo_name      | ${HEAD_REPO_NAME}     |"
+            echo "| head_branch         | ${HEAD_BRANCH}        |"
+            echo "| image_name          | ${IMAGE_NAME}         |"
+            echo "| image_tag           | ${IMAGE_TAG}          |"
+            echo "| image_available     | ${IMAGE_AVAILABLE}    |"
+            echo "| image_digest        | ${IMAGE_DIGEST}       |"
+            echo "| workflow_run_id     | ${WORKFLOW_RUN_ID}    |"
+            echo "| artifact_name       | ${ARTIFACT_NAME}      |"
+            echo "| artifact_available  | ${ARTIFACT_AVAILABLE} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
           # Set outputs
           echo "pr_number=$PR_NUMBER" >>$GITHUB_OUTPUT
