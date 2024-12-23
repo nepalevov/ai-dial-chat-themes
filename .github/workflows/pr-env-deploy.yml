@@ -19,14 +19,24 @@ jobs:
       image_name: ${{ steps.pr_context.outputs.image_name }}
       image_tag: ${{ steps.pr_context.outputs.image_tag }}
       image_available: ${{ steps.pr_context.outputs.image_available }}
+      image_digest: ${{ steps.pr_context.outputs.image_digest }}
       workflow_run_id: ${{ steps.pr_context.outputs.workflow_run_id }}
       artifact_name: ${{ steps.pr_context.outputs.artifact_name }}
       artifact_available: ${{ steps.pr_context.outputs.artifact_available }}
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Dump GitHub context # TODO: remove after debug
         run: echo "$GITHUB_CONTEXT"
         env:
           GITHUB_CONTEXT: ${{ toJson(github) }}
+      - name: Log in to the Container registry
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Get PR context
         id: pr_context
         run: |
@@ -46,9 +56,15 @@ jobs:
           # Search for the image tag in GHCR
           IMAGE_NAME="${INPUT_BASE_REPOSITORY}"
           IMAGE_TAG="${MERGE_COMMIT_SHA}"
-          TAGS=$(skopeo list-tags \
-            "docker://ghcr.io/${IMAGE_NAME}")
-          IMAGE_AVAILABLE=$(echo "$TAGS" | jq --arg tag "$IMAGE_TAG" '.Tags | index($tag) != null')
+          if IMAGE_DIGEST=$(skopeo inspect \
+            --no-tags \
+            --retry-times 3 \
+            --format '{{ .Digest }}' \
+            "docker://ghcr.io/${IMAGE_NAME}:${IMAGE_TAG}" 2>/dev/null); then
+            IMAGE_AVAILABLE=true
+          else
+            IMAGE_AVAILABLE=false
+          fi
 
           # Search for the artifact
           ARTIFACT_NAME="$MERGE_COMMIT_SHA"
@@ -71,6 +87,7 @@ jobs:
           echo "image_name=$IMAGE_NAME" >>$GITHUB_OUTPUT
           echo "image_tag=$IMAGE_TAG" >>$GITHUB_OUTPUT
           echo "image_available=$IMAGE_AVAILABLE" >>$GITHUB_OUTPUT
+          echo "image_digest=$IMAGE_DIGEST" >>$GITHUB_OUTPUT
           echo "workflow_run_id=${{ github.event.workflow_run.id }}" >>$GITHUB_OUTPUT
           echo artifact_name=$ARTIFACT_NAME >>$GITHUB_OUTPUT
           echo "artifact_available=$ARTIFACT_AVAILABLE" >>$GITHUB_OUTPUT
