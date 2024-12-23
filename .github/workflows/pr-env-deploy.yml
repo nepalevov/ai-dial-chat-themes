@@ -184,14 +184,15 @@ jobs:
           fi
       - name: List and Inspect Container Images # TODO: remove after debug
         run: |
-          docker images ls
+          docker image ls
           docker inspect ghcr.io/${INPUT_IMAGE_NAME}:${INPUT_IMAGE_TAG}
-          - name: Push Container Image to GHCR
-            if: ${{ needs.prepare.outputs.image_available == 'false' && needs.prepare.outputs.artifact_available == 'true' }}
-            run: |
-              skopeo copy \
+      - name: Push Container Image to GHCR
+        if: ${{ needs.prepare.outputs.image_available == 'false' && needs.prepare.outputs.artifact_available == 'true' }}
+        run: |
+          skopeo copy \
             docker-archive:${INPUT_ARTIFACT_FILE} \
             docker://ghcr.io/${INPUT_IMAGE_NAME}:${INPUT_IMAGE_TAG}
+
       # - uses: nepalevov/ai-dial-ci/actions/build_docker@main
       #   with:
       #     ghcr_username: ${{ github.actor }}
