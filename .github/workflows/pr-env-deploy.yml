@@ -134,7 +134,7 @@ jobs:
       environment_name: "pr-${{ needs.prepare.outputs.pr_number }}"
 
   deploy:
-    if: ${{ needs.prepare.outputs.image_available || needs.prepare.outputs.artifact_available }}
+    if: ${{ needs.prepare.outputs.image_available == 'true' || needs.prepare.outputs.artifact_available == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       actions: read # Needed to access artifacts
@@ -147,6 +147,7 @@ jobs:
       name: ${{ needs.plan.outputs.environment_name }}
     env:
       INPUT_ARTIFACT_NAME: ${{ needs.prepare.outputs.artifact_name }}
+      INPUT_ARTIFACT_FILE: /tmp/${{ needs.prepare.outputs.artifact_name }}.tar
       INPUT_IMAGE_NAME: ${{ needs.prepare.outputs.image_name }}
       INPUT_IMAGE_TAG: ${{ needs.prepare.outputs.image_tag }}
     steps:
@@ -157,11 +158,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Load Container Image from GHCR # TODO: remove after debug
-        if: ${{ needs.prepare.outputs.image_available }}
+        if: ${{ needs.prepare.outputs.image_available == 'true' }}
         run: |
           docker pull ghcr.io/${INPUT_IMAGE_NAME}:${INPUT_IMAGE_TAG}
       - name: Download Artifact from Previous Workflow Run
-        if: ${{ !needs.prepare.outputs.image_available && needs.prepare.outputs.artifact_available }}
+        if: ${{ needs.prepare.outputs.image_available == 'false' && needs.prepare.outputs.artifact_available == 'true' }}
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
           name: ${INPUT_ARTIFACT_NAME}
@@ -169,15 +170,14 @@ jobs:
           run-id: ${{ needs.prepare.outputs.workflow_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Load Container Image from Artifact
-        if: ${{ !needs.prepare.outputs.image_available && needs.prepare.outputs.artifact_available }}
+        if: ${{ needs.prepare.outputs.image_available == 'false' && needs.prepare.outputs.artifact_available == 'true' }}
         id: load_image
         run: |
           #!/bin/bash
           set -x # TODO: remove after debug
 
-          ARTIFACT_FILE=/tmp/${INPUT_ARTIFACT_NAME}.tar
-          if [ -f "$ARTIFACT_FILE" ]; then
-            docker load --input "$ARTIFACT_FILE"
+          if [ -f "$INPUT_ARTIFACT_FILE" ]; then
+            docker load --input "$INPUT_ARTIFACT_FILE"
           else
             echo "::error::Artifact file not found"
             exit 1
@@ -186,7 +186,12 @@ jobs:
         run: |
           docker images ls
           docker inspect ghcr.io/${INPUT_IMAGE_NAME}:${INPUT_IMAGE_TAG}
-
+          - name: Push Container Image to GHCR
+            if: ${{ needs.prepare.outputs.image_available == 'false' && needs.prepare.outputs.artifact_available == 'true' }}
+            run: |
+              skopeo copy \
+            docker-archive:${INPUT_ARTIFACT_FILE} \
+            docker://ghcr.io/${INPUT_IMAGE_NAME}:${INPUT_IMAGE_TAG}
       # - uses: nepalevov/ai-dial-ci/actions/build_docker@main
       #   with:
       #     ghcr_username: ${{ github.actor }}
